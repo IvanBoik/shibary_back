@@ -18,7 +18,7 @@ class SentenceGenerationService(chatClientBuilder: ChatClient.Builder) {
             """Generate exactly {count} unique simple English sentence(s) (about 5 words) using the word "{word}".
 For each sentence, also provide its Russian translation.
 Return ONLY a valid JSON array with no extra text. Each element must have exactly two fields: "sentence" (English) and "translation" (Russian).
-Example for count=1: [{"sentence":"I like apples.","translation":"Я люблю яблоки."}]"""
+Example for count=1: [{{"sentence":"I like apples.","translation":"Я люблю яблоки."}}]"""
     }
 
     fun generate(word: String, count: Int): List<SentenceResponse> {
