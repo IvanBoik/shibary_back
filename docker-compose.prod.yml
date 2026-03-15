@@ -1,0 +1,11 @@
+services:
+  shibary-back:
+    image: ghcr.io/${GITHUB_REPOSITORY:-boiko/shibary_back}:${IMAGE_TAG:-latest}
+    container_name: shibary-back
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434

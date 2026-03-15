@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: shibary_back
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://host.docker.internal:11434}
+      chat:
+        model: qwen2.5:3b
