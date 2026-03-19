@@ -1,6 +1,5 @@
 package org.boiko.shibary_back.service
 
-import org.boiko.shibary_back.dto.SentenceResponse
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.core.ParameterizedTypeReference
@@ -16,21 +15,24 @@ class SentenceGenerationService(chatClientBuilder: ChatClient.Builder) {
     companion object {
         private const val PROMPT_TEMPLATE =
             """Generate exactly {count} unique simple English sentence(s) (about 5 words) using the word "{word}".
-For each sentence, also provide its Russian translation.
-Return ONLY a valid JSON array with no extra text. Each element must have exactly two fields: "sentence" (English) and "translation" (Russian).
-Example for count=1: [{{"sentence":"I like apples.","translation":"Я люблю яблоки."}}]"""
+Return ONLY a valid JSON array of strings with no extra text.
+Example for count=2: ["I like apples.","She eats apples."]"""
     }
 
-    fun generate(word: String, count: Int): List<SentenceResponse> {
+    fun generate(word: String, count: Int): List<String> {
         log.info("Generating {} sentence(s) for word '{}'", count, word)
 
-        val result: List<SentenceResponse>? = chatClient.prompt()
-            .user { it.text(PROMPT_TEMPLATE).param("count", count).param("word", word) }
-            .call()
-            .entity(object : ParameterizedTypeReference<List<SentenceResponse>>() {})
+        try {
+            val result: List<String>? = chatClient.prompt()
+                .user { it.text(PROMPT_TEMPLATE).param("count", count).param("word", word) }
+                .call()
+                .entity(object : ParameterizedTypeReference<List<String>>() {})
 
-        log.debug("Generated result: {}", result)
-
-        return result ?: emptyList()
+            log.debug("Generated result: {}", result)
+            return result ?: emptyList()
+        } catch (ex: Exception) {
+            log.error("Failed to generate sentences for word '{}': {}", word, ex.message, ex)
+            throw ex
+        }
     }
 }
