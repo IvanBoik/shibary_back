@@ -17,7 +17,7 @@ services:
     container_name: shibary-back
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "9090:8080"
     depends_on:
       - postgres
     environment:
@@ -26,7 +26,7 @@ services:
       DB_NAME: shibary
       DB_USERNAME: shibary
       DB_PASSWORD: shibary
-      CHAD_API_KEY: chad-521f2bbdce924f3099b5d7b9b87aeec2tixjo1r1
+      CHAD_API_KEY: ${CHAD_API_KEY}
 
 volumes:
   pgdata:
