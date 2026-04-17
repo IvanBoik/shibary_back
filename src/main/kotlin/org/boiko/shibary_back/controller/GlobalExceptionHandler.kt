@@ -13,13 +13,13 @@ class GlobalExceptionHandler {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** Ollama (or any upstream) is unreachable */
+    /** Chad API or DB is unreachable */
     @ExceptionHandler(ConnectException::class)
     fun handleConnectionError(ex: ConnectException): ResponseEntity<Map<String, String>> {
-        log.error("AI service is unavailable: {}", ex.message)
+        log.error("External service is unavailable: {}", ex.message)
         return ResponseEntity
             .status(HttpStatus.SERVICE_UNAVAILABLE)
-            .body(mapOf("error" to "AI service is unavailable, please try again later"))
+            .body(mapOf("error" to "External service is unavailable, please try again later"))
     }
 
     /** Malformed request body */

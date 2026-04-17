@@ -20,8 +20,6 @@ WORKDIR /app
 
 COPY --from=build /app/build/libs/*.jar app.jar
 
-ENV OLLAMA_BASE_URL=http://host.docker.internal:11434
-
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

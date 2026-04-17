@@ -1,8 +1,16 @@
 spring:
   application:
     name: shibary_back
-  ai:
-    ollama:
-      base-url: ${OLLAMA_BASE_URL:http://host.docker.internal:11434}
-      chat:
-        model: qwen2.5:1.5b
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:shibary}
+    username: ${DB_USERNAME:shibary}
+    password: ${DB_PASSWORD:shibary}
+  sql:
+    init:
+      mode: always
+
+chad:
+  api:
+    key: chad-521f2bbdce924f3099b5d7b9b87aeec2tixjo1r1
+    url: https://ask.chadgpt.ru/api/public/gemini-3.1-flash-lite
+    sentence-count: 10
