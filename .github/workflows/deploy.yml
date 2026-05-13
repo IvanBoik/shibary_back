@@ -14,6 +14,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          debug: true
           envs: CHAD_API_KEY
           script: |
             set -e
