@@ -12,6 +12,26 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    container_name: shibary-libretranslate
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    tty: true
+    environment:
+      LT_LOAD_ONLY: "en,ru"
+      LT_DISABLE_WEB_UI: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "./venv/bin/python scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    volumes:
+      - libretranslate-api-keys:/app/db
+      - libretranslate-models:/home/libretranslate/.local:rw
+
   shibary-back:
     build: .
     container_name: shibary-back
@@ -20,6 +40,7 @@ services:
       - "9090:8080"
     depends_on:
       - postgres
+      - libretranslate
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -27,6 +48,9 @@ services:
       DB_USERNAME: shibary
       DB_PASSWORD: shibary
       CHAD_API_KEY: ${CHAD_API_KEY}
+      LIBRETRANSLATE_URL: http://libretranslate:5000
 
 volumes:
   pgdata:
+  libretranslate-api-keys:
+  libretranslate-models:

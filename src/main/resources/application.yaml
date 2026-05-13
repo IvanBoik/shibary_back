@@ -14,3 +14,9 @@ chad:
     key: chad-521f2bbdce924f3099b5d7b9b87aeec2tixjo1r1
     url: https://ask.chadgpt.ru/api/public/gemini-3.1-flash-lite
     sentence-count: 10
+
+libretranslate:
+  url: ${LIBRETRANSLATE_URL:http://localhost:5000}
+  api-key: ${LIBRETRANSLATE_API_KEY:}
+  source-lang: en
+  target-lang: ru

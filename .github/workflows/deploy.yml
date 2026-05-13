@@ -1,0 +1,33 @@
+name: Deploy to server
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          envs: CHAD_API_KEY
+          script: |
+            set -e
+            cd /home/deploy/shibary_back
+            git fetch --all
+            git reset --hard origin/master
+
+            # формируем .env на сервере из переменных окружения сессии
+            cat > .env <<EOF
+            CHAD_API_KEY=${CHAD_API_KEY}
+            EOF
+
+            docker compose pull
+            docker compose up -d --build
+            docker image prune -f
+        env:
+          CHAD_API_KEY: ${{ secrets.CHAD_API_KEY }}

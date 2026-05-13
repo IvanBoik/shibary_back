@@ -8,6 +8,8 @@ import java.time.Instant
 data class Sentence(
     @Id val id: Long? = null,
     val word: String,
+    val wordRu: String,
     val text: String,
+    val textRu: String,
     val createdAt: Instant = Instant.now()
 )

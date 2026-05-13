@@ -1,8 +1,10 @@
 package org.boiko.shibary_back.service
 
 import org.boiko.shibary_back.client.ChadApiClient
+import org.boiko.shibary_back.client.LibreTranslateClient
 import org.boiko.shibary_back.config.ChadApiProperties
 import org.boiko.shibary_back.dto.SentenceResponse
+import org.boiko.shibary_back.dto.TranslatedSentence
 import org.boiko.shibary_back.model.Sentence
 import org.boiko.shibary_back.repository.SentenceRepository
 import org.slf4j.LoggerFactory
@@ -16,6 +18,7 @@ class SentenceGenerationService(
     private val sentenceRepository: SentenceRepository,
     private val chadApiClient: ChadApiClient,
     private val chadApiProperties: ChadApiProperties,
+    private val libreTranslateClient: LibreTranslateClient,
     private val objectMapper: ObjectMapper
 ) {
 
@@ -34,22 +37,38 @@ class SentenceGenerationService(
 
         if (sentenceRepository.existsByWord(normalizedWord)) {
             val sentences = findByWordWrapping(normalizedWord, count, offset)
+            val wordRu = sentences.firstOrNull()?.wordRu ?: translateSafely(normalizedWord)
             return SentenceResponse(
                 word = normalizedWord,
-                sentences = sentences.map { it.text }
+                wordRu = wordRu,
+                sentences = sentences.map { TranslatedSentence(it.text, it.textRu) }
             )
         }
 
         val generatedSentences = generateFromApi(normalizedWord)
+        val translatedSentences = libreTranslateClient.translateBatch(generatedSentences)
+        val wordRu = translateSafely(normalizedWord)
 
-        saveAsync(normalizedWord, generatedSentences)
+        val pairs = generatedSentences.mapIndexed { idx, en ->
+            TranslatedSentence(en, translatedSentences.getOrNull(idx).orEmpty())
+        }
 
-        val result = generatedSentences.take(count)
+        saveAsync(normalizedWord, wordRu, pairs)
+
         return SentenceResponse(
             word = normalizedWord,
-            sentences = result
+            wordRu = wordRu,
+            sentences = pairs.take(count)
         )
     }
+
+    private fun translateSafely(text: String): String =
+        try {
+            libreTranslateClient.translate(text)
+        } catch (ex: Exception) {
+            log.error("Failed to translate '{}': {}", text, ex.message, ex)
+            ""
+        }
 
     private fun generateFromApi(word: String): List<String> {
         val prompt = PROMPT_TEMPLATE.format(chadApiProperties.sentenceCount, word)
@@ -71,7 +90,6 @@ class SentenceGenerationService(
         }
     }
 
-    /** Extracts the first JSON array from the response text (handles markdown code blocks). */
     private fun extractJsonArray(text: String): String {
         val start = text.indexOf('[')
         val end = text.lastIndexOf(']')
@@ -81,10 +99,6 @@ class SentenceGenerationService(
         return text.substring(start, end + 1)
     }
 
-    /**
-     * Fetches [count] sentences for [word] starting at [offset], wrapping around to the beginning
-     * when the end of available records is reached.
-     */
     private fun findByWordWrapping(word: String, count: Int, offset: Int): List<Sentence> {
         val total = sentenceRepository.countByWord(word).toInt()
         if (total == 0) return emptyList()
@@ -100,9 +114,11 @@ class SentenceGenerationService(
     }
 
     @Async
-    fun saveAsync(word: String, sentences: List<String>) {
+    fun saveAsync(word: String, wordRu: String, sentences: List<TranslatedSentence>) {
         try {
-            val entities = sentences.map { Sentence(word = word, text = it) }
+            val entities = sentences.map {
+                Sentence(word = word, wordRu = wordRu, text = it.text, textRu = it.textRu)
+            }
             sentenceRepository.saveAll(entities)
             log.info("Successfully saved {} sentence(s) for word '{}'", sentences.size, word)
         } catch (ex: Exception) {
