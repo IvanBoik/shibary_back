@@ -6,8 +6,8 @@ WORKDIR /app
 COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle ./gradle
 
-# Cache dependencies
-RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
+# Normalize line endings (in case gradlew was committed with CRLF) and cache dependencies
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew && ./gradlew dependencies --no-daemon
 
 COPY src ./src
 
