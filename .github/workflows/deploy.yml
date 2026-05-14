@@ -18,7 +18,12 @@ jobs:
           envs: CHAD_API_KEY
           script: |
             set -e
-            cd /home/deploy/shibary_back
+            REPO_DIR=/home/deploy/shibary_back
+            REPO_URL=https://github.com/${{ github.repository }}.git
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone "$REPO_URL" "$REPO_DIR"
+            fi
+            cd "$REPO_DIR"
             git fetch --all
             git reset --hard origin/master
 
