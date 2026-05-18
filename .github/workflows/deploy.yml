@@ -15,7 +15,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           debug: true
-          envs: CHAD_API_KEY
+          envs: CHAD_API_KEY,ADMIN_USERNAME,ADMIN_PASSWORD
           script: |
             set -e
             REPO_DIR=/home/deploy/shibary_back
@@ -27,13 +27,20 @@ jobs:
             git fetch --all
             git reset --hard origin/master
 
-            # формируем .env на сервере из переменных окружения сессии
+            # формируем .env на сервере из переменных окружения сессии.
+            # 'EOF' без кавычек -> переменные подставляются shell'ом,
+            # значения не цитируем, чтобы docker compose не воспринял кавычки буквально.
             cat > .env <<EOF
             CHAD_API_KEY=${CHAD_API_KEY}
+            ADMIN_USERNAME=${ADMIN_USERNAME}
+            ADMIN_PASSWORD=${ADMIN_PASSWORD}
             EOF
+            chmod 600 .env
 
             docker compose pull
-            docker compose up -d --build
+            docker compose up -d --build --force-recreate shibary-back
             docker image prune -f
         env:
           CHAD_API_KEY: ${{ secrets.CHAD_API_KEY }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
