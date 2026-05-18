@@ -49,6 +49,10 @@ services:
       DB_PASSWORD: shibary
       CHAD_API_KEY: ${CHAD_API_KEY}
       LIBRETRANSLATE_URL: http://libretranslate:5000
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      SBA_CLIENT_URL: http://shibary-back:8080/admin
+      SBA_SERVICE_BASE_URL: http://shibary-back:8080
 
 volumes:
   pgdata:

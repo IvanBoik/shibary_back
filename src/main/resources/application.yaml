@@ -20,3 +20,43 @@ libretranslate:
   api-key: ${LIBRETRANSLATE_API_KEY:}
   source-lang: en
   target-lang: ru
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  file:
+    name: logs/shibary.log
+  pattern:
+    rolling-file-name: logs/shibary-%d{yyyy-MM-dd}.%i.log
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    logfile:
+      external-file: logs/shibary.log
+    loggers:
+      access: unrestricted
+    health:
+      show-details: always
+
+spring.boot.admin:
+  context-path: /admin
+  client:
+    url: ${SBA_CLIENT_URL:http://localhost:${server.port}/admin}
+    username: ${admin.security.username}
+    password: ${admin.security.password}
+    instance:
+      service-base-url: ${SBA_SERVICE_BASE_URL:http://localhost:${server.port}}
+      name: ${spring.application.name}
+      metadata:
+        user.name: ${admin.security.username}
+        user.password: ${admin.security.password}
+
+admin:
+  security:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:}

@@ -9,6 +9,8 @@ group = "org.boiko"
 version = "0.0.1-SNAPSHOT"
 description = "shibary_back"
 
+extra["springBootAdminVersion"] = "4.0.4"
+
 java {
   toolchain {
     languageVersion = JavaLanguageVersion.of(21)
@@ -28,6 +30,10 @@ dependencies {
   implementation("tools.jackson.module:jackson-module-kotlin")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 
+  implementation("de.codecentric:spring-boot-admin-starter-server")
+  implementation("de.codecentric:spring-boot-admin-starter-client")
+  implementation("org.springframework.boot:spring-boot-starter-security")
+
   testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
   testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
   testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
@@ -42,4 +48,10 @@ kotlin {
 
 tasks.withType<Test> {
   useJUnitPlatform()
+}
+
+dependencyManagement {
+  imports {
+    mavenBom("de.codecentric:spring-boot-admin-dependencies:${property("springBootAdminVersion")}")
+  }
 }
