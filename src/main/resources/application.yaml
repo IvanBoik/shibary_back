@@ -25,6 +25,10 @@ server:
   port: ${SERVER_PORT:8080}
 
 logging:
+  level:
+    org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter: ERROR
+    org.springframework.web.context.request.async.StandardServletAsyncWebRequest: ERROR
+    org.apache.catalina.connector.ClientAbortException: OFF
   file:
     name: logs/shibary.log
   pattern:
