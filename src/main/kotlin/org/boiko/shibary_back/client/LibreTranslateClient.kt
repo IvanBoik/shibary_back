@@ -12,57 +12,57 @@ import org.springframework.web.client.body
 
 @Component
 class LibreTranslateClient(
-    private val properties: LibreTranslateProperties,
-    restClientBuilder: RestClient.Builder
+  private val properties: LibreTranslateProperties,
+  restClientBuilder: RestClient.Builder
 ) {
 
-    private val log = LoggerFactory.getLogger(javaClass)
-    private val restClient: RestClient = restClientBuilder.baseUrl(properties.url).build()
+  private val log = LoggerFactory.getLogger(javaClass)
+  private val restClient: RestClient = restClientBuilder.baseUrl(properties.url).build()
 
-    fun translate(text: String): String {
-        val request = LibreTranslateRequest(
-            q = text,
-            source = properties.sourceLang,
-            target = properties.targetLang,
-            apiKey = properties.apiKey
-        )
+  fun translate(text: String): String {
+    val request = LibreTranslateRequest(
+      q = text,
+      source = properties.sourceLang,
+      target = properties.targetLang,
+      apiKey = properties.apiKey
+    )
 
-        val response = restClient.post()
-            .uri("/translate")
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(request)
-            .retrieve()
-            .body<LibreTranslateSingleResponse>()
-            ?: throw IllegalStateException("LibreTranslate returned null response")
+    val response = restClient.post()
+      .uri("/translate")
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(request)
+      .retrieve()
+      .body<LibreTranslateSingleResponse>()
+      ?: throw IllegalStateException("LibreTranslate returned null response")
 
-        return response.translatedText
+    return response.translatedText
+  }
+
+  fun translateBatch(texts: List<String>): List<String> {
+    if (texts.isEmpty()) return emptyList()
+
+    val request = LibreTranslateRequest(
+      q = texts,
+      source = properties.sourceLang,
+      target = properties.targetLang,
+      apiKey = properties.apiKey
+    )
+
+    val response = restClient.post()
+      .uri("/translate")
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(request)
+      .retrieve()
+      .body<LibreTranslateBatchResponse>()
+      ?: throw IllegalStateException("LibreTranslate returned null response")
+
+    if (response.translatedText.size != texts.size) {
+      log.warn(
+        "LibreTranslate returned {} translations for {} input texts",
+        response.translatedText.size, texts.size
+      )
     }
 
-    fun translateBatch(texts: List<String>): List<String> {
-        if (texts.isEmpty()) return emptyList()
-
-        val request = LibreTranslateRequest(
-            q = texts,
-            source = properties.sourceLang,
-            target = properties.targetLang,
-            apiKey = properties.apiKey
-        )
-
-        val response = restClient.post()
-            .uri("/translate")
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(request)
-            .retrieve()
-            .body<LibreTranslateBatchResponse>()
-            ?: throw IllegalStateException("LibreTranslate returned null response")
-
-        if (response.translatedText.size != texts.size) {
-            log.warn(
-                "LibreTranslate returned {} translations for {} input texts",
-                response.translatedText.size, texts.size
-            )
-        }
-
-        return response.translatedText
-    }
+    return response.translatedText
+  }
 }

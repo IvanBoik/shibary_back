@@ -4,12 +4,12 @@ import org.springframework.data.annotation.Id
 import org.springframework.data.relational.core.mapping.Table
 import java.time.Instant
 
-@Table("sentence")
-data class Sentence(
+@Table("word_info")
+data class WordInfo(
   @Id val id: Long? = null,
   val word: String,
-  val wordRu: String,
-  val text: String,
-  val textRu: String,
+  val definition: String,
+  val synonyms: String,
+  val antonyms: String,
   val createdAt: Instant = Instant.now()
 )

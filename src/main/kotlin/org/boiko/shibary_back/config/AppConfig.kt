@@ -6,6 +6,6 @@ import org.springframework.web.client.RestClient
 
 @Configuration
 class AppConfig {
-    @Bean
-    fun restClientBuilder() = RestClient.builder()
+  @Bean
+  fun restClientBuilder() = RestClient.builder()
 }

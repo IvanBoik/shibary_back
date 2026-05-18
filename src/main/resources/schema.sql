@@ -8,3 +8,15 @@ CREATE TABLE IF NOT EXISTS sentence (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sentence_word ON sentence (word);
+
+CREATE TABLE IF NOT EXISTS word_info (
+    id         BIGSERIAL PRIMARY KEY,
+    word       VARCHAR(255) NOT NULL UNIQUE,
+    definition TEXT         NOT NULL,
+    synonyms   TEXT         NOT NULL,
+    antonyms   TEXT         NOT NULL,
+    created_at TIMESTAMP    NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_word_info_word ON word_info (word);
+

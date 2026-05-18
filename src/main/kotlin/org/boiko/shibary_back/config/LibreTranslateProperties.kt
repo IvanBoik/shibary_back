@@ -4,8 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties(prefix = "libretranslate")
 data class LibreTranslateProperties(
-    val url: String,
-    val apiKey: String? = null,
-    val sourceLang: String = "en",
-    val targetLang: String = "ru"
+  val url: String,
+  val apiKey: String? = null,
+  val sourceLang: String = "en",
+  val targetLang: String = "ru"
 )
