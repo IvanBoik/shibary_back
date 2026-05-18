@@ -29,10 +29,6 @@ class SentenceController(private val sentenceService: SentenceGenerationService)
       return ResponseEntity.badRequest()
         .body(mapOf("error" to "Count must be between $MIN_COUNT and $MAX_COUNT"))
     }
-    if (request.offset != null && request.offset !in MIN_COUNT..MAX_COUNT) {
-      return ResponseEntity.badRequest()
-        .body(mapOf("error" to "Offset must be between $MIN_COUNT and $MAX_COUNT"))
-    }
 
     val result: SentenceResponse = sentenceService.getSentences(
       word = request.word,

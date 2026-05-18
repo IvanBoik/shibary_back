@@ -59,32 +59,38 @@ class SentenceGenerationService(
 
   fun getSentences(word: String, count: Int, offset: Int?): SentenceResponse {
     val normalizedWord = word.trim().lowercase()
+    val requestedOffset = offset ?: 0
+    val savedCount = sentenceRepository.countByWord(normalizedWord).toInt()
 
-    if (sentenceRepository.existsByWord(normalizedWord)) {
-      val sentences = findByWordWrapping(normalizedWord, count, offset ?: 0)
-      val wordRu = sentences.firstOrNull()?.wordRu ?: translateSafely(normalizedWord)
+    if (savedCount > 0) {
+      val savedSentences = sentenceRepository.findByWord(normalizedWord, count, requestedOffset)
+      val wordRu = savedSentences.firstOrNull()?.wordRu
+        ?: sentenceRepository.findByWord(normalizedWord, 1, 0).firstOrNull()?.wordRu
+        ?: translateSafely(normalizedWord)
+
+      if (savedSentences.size >= count) {
+        return buildSentenceResponse(normalizedWord, wordRu, savedSentences)
+      }
+
+      val generatedPairs = generateTranslateAndSaveSync(
+        word = normalizedWord,
+        wordRu = wordRu,
+        count = count - savedSentences.size
+      )
       return SentenceResponse(
         word = normalizedWord,
         wordRu = wordRu,
-        sentences = sentences.map { TranslatedSentence(it.text, it.textRu) }
+        sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } + generatedPairs
       )
     }
 
     val totalCount = chadApiProperties.sentenceCount
-    val syncCount = (offset ?: 1).coerceIn(1, totalCount)
+    val syncCount = count.coerceAtMost(totalCount)
     val asyncCount = totalCount - syncCount
-
-    val syncSentences = generateFromApi(normalizedWord, syncCount)
-    val syncTranslations = libreTranslateClient.translateBatch(syncSentences)
     val wordRu = translateSafely(normalizedWord)
-
-    val syncPairs = syncSentences.mapIndexed { idx, en ->
-      TranslatedSentence(en, syncTranslations.getOrNull(idx).orEmpty())
-    }
+    val syncPairs = generateTranslateAndSaveSync(normalizedWord, wordRu, syncCount)
 
     backgroundScope.launch {
-      saveSentences(normalizedWord, wordRu, syncPairs)
-
       supervisorScope {
         launch { generateAndSaveWordInfo(normalizedWord) }
         if (asyncCount > 0) {
@@ -165,18 +171,27 @@ class SentenceGenerationService(
       emptyList()
     }
 
-  private fun findByWordWrapping(word: String, count: Int, offset: Int): List<Sentence> {
-    val total = sentenceRepository.countByWord(word).toInt()
-    if (total == 0) return emptyList()
+  private fun buildSentenceResponse(word: String, wordRu: String, sentences: List<Sentence>) =
+    SentenceResponse(
+      word = word,
+      wordRu = wordRu,
+      sentences = sentences.map { TranslatedSentence(it.text, it.textRu) }
+    )
 
-    val wrappedOffset = offset % total
-    val tail = sentenceRepository.findByWord(word, count, wrappedOffset)
+  private fun generateTranslateAndSaveSync(
+    word: String,
+    wordRu: String,
+    count: Int
+  ): List<TranslatedSentence> {
+    if (count <= 0) return emptyList()
 
-    if (tail.size >= count) return tail
-
-    val remaining = count - tail.size
-    val head = sentenceRepository.findByWord(word, remaining, 0)
-    return tail + head
+    val sentences = generateFromApi(word, count)
+    val translations = libreTranslateClient.translateBatch(sentences)
+    val pairs = sentences.mapIndexed { idx, en ->
+      TranslatedSentence(en, translations.getOrNull(idx).orEmpty())
+    }
+    saveSentences(word, wordRu, pairs)
+    return pairs
   }
 
   private fun generateTranslateAndSave(word: String, wordRu: String, count: Int) {
