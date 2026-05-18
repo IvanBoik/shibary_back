@@ -71,7 +71,7 @@ class SentenceGenerationService(
     }
 
     val totalCount = chadApiProperties.sentenceCount
-    val syncCount = (offset ?: 1).coerceIn(1, totalCount)
+    val syncCount = count % totalCount
     val asyncCount = totalCount - syncCount
 
     val syncSentences = generateFromApi(normalizedWord, syncCount)
