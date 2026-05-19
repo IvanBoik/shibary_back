@@ -22,6 +22,7 @@ import org.springframework.beans.factory.DisposableBean
 import org.springframework.stereotype.Service
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.readValue
+import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class SentenceGenerationService(
@@ -39,7 +40,11 @@ class SentenceGenerationService(
     SupervisorJob() + Dispatchers.IO + CoroutineName("sentence-bg")
   )
 
+  private val backgroundGenerationWords = ConcurrentHashMap.newKeySet<String>()
+
   companion object {
+    private const val PREFETCH_DISTANCE_FROM_END = 2
+
     private const val PROMPT_TEMPLATE =
       """Generate exactly %d unique simple English sentences (about 5 words each) using the word "%s".
                Return ONLY a valid JSON array of strings with no extra text.
@@ -61,6 +66,7 @@ class SentenceGenerationService(
     val normalizedWord = word.trim().lowercase()
     val requestedOffset = offset ?: 0
     val savedCount = sentenceRepository.countByWord(normalizedWord).toInt()
+    val generationBatchSize = chadApiProperties.sentenceCount
 
     if (savedCount > 0) {
       val savedSentences = sentenceRepository.findByWord(normalizedWord, count, requestedOffset)
@@ -68,25 +74,34 @@ class SentenceGenerationService(
         ?: sentenceRepository.findByWord(normalizedWord, 1, 0).firstOrNull()?.wordRu
         ?: translateSafely(normalizedWord)
 
-      if (savedSentences.size >= count) {
+      val requestEndOffset = requestedOffset + count
+      val missingForRequest = (requestEndOffset - savedCount).coerceAtLeast(0)
+      val shouldPrefetch = requestedOffset >= savedCount - PREFETCH_DISTANCE_FROM_END
+
+      if (missingForRequest == 0) {
+        if (shouldPrefetch) {
+          scheduleBackgroundGeneration(normalizedWord, wordRu, generationBatchSize)
+        }
         return buildSentenceResponse(normalizedWord, wordRu, savedSentences)
       }
 
       val generatedPairs = generateTranslateAndSaveSync(
         word = normalizedWord,
         wordRu = wordRu,
-        count = count - savedSentences.size
+        count = missingForRequest
       )
+      val backgroundCount = (generationBatchSize - missingForRequest).coerceAtLeast(0)
+      scheduleBackgroundGeneration(normalizedWord, wordRu, backgroundCount)
+
       return SentenceResponse(
         word = normalizedWord,
         wordRu = wordRu,
-        sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } + generatedPairs
+        sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } + generatedPairs.take(count - savedSentences.size)
       )
     }
 
-    val totalCount = chadApiProperties.sentenceCount
-    val syncCount = count.coerceAtMost(totalCount)
-    val asyncCount = totalCount - syncCount
+    val syncCount = count.coerceAtMost(generationBatchSize)
+    val asyncCount = generationBatchSize - syncCount
     val wordRu = translateSafely(normalizedWord)
     val syncPairs = generateTranslateAndSaveSync(normalizedWord, wordRu, syncCount)
 
@@ -192,6 +207,18 @@ class SentenceGenerationService(
     }
     saveSentences(word, wordRu, pairs)
     return pairs
+  }
+
+  private fun scheduleBackgroundGeneration(word: String, wordRu: String, count: Int) {
+    if (count <= 0 || !backgroundGenerationWords.add(word)) return
+
+    backgroundScope.launch {
+      try {
+        generateTranslateAndSave(word, wordRu, count)
+      } finally {
+        backgroundGenerationWords.remove(word)
+      }
+    }
   }
 
   private fun generateTranslateAndSave(word: String, wordRu: String, count: Int) {
