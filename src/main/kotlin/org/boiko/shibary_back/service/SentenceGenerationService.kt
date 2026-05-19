@@ -23,8 +23,11 @@ import org.springframework.stereotype.Service
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.module.kotlin.readValue
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 @Service
+
 class SentenceGenerationService(
   private val sentenceRepository: SentenceRepository,
   private val wordInfoRepository: WordInfoRepository,
@@ -41,8 +44,10 @@ class SentenceGenerationService(
   )
 
   private val backgroundGenerationWords = ConcurrentHashMap.newKeySet<String>()
+  private val wordLocks = ConcurrentHashMap<String, ReentrantLock>()
 
   companion object {
+
     private const val PREFETCH_DISTANCE_FROM_END = 2
 
     private const val PROMPT_TEMPLATE =
@@ -65,60 +70,63 @@ class SentenceGenerationService(
   fun getSentences(word: String, count: Int, offset: Int?): SentenceResponse {
     val normalizedWord = word.trim().lowercase()
     val requestedOffset = offset ?: 0
-    val savedCount = sentenceRepository.countByWord(normalizedWord).toInt()
     val generationBatchSize = chadApiProperties.sentenceCount
 
-    if (savedCount > 0) {
-      val savedSentences = sentenceRepository.findByWord(normalizedWord, count, requestedOffset)
-      val wordRu = savedSentences.firstOrNull()?.wordRu
-        ?: sentenceRepository.findByWord(normalizedWord, 1, 0).firstOrNull()?.wordRu
-        ?: translateSafely(normalizedWord)
+    return withWordLock(normalizedWord) {
+      val savedCount = sentenceRepository.countByWord(normalizedWord).toInt()
 
-      val requestEndOffset = requestedOffset + count
-      val missingForRequest = (requestEndOffset - savedCount).coerceAtLeast(0)
-      val shouldPrefetch = requestedOffset >= savedCount - PREFETCH_DISTANCE_FROM_END
+      if (savedCount > 0) {
+        val savedSentences = sentenceRepository.findByWord(normalizedWord, count, requestedOffset)
+        val wordRu = savedSentences.firstOrNull()?.wordRu
+          ?: sentenceRepository.findByWord(normalizedWord, 1, 0).firstOrNull()?.wordRu
+          ?: translateSafely(normalizedWord)
 
-      if (missingForRequest == 0) {
-        if (shouldPrefetch) {
-          scheduleBackgroundGeneration(normalizedWord, wordRu, generationBatchSize)
+        val requestEndOffset = requestedOffset + count
+        val missingForRequest = (requestEndOffset - savedCount).coerceAtLeast(0)
+        val shouldPrefetch = requestedOffset >= savedCount - PREFETCH_DISTANCE_FROM_END
+
+        if (missingForRequest == 0) {
+          if (shouldPrefetch) {
+            scheduleBackgroundGeneration(normalizedWord, wordRu, generationBatchSize)
+          }
+          return@withWordLock buildSentenceResponse(normalizedWord, wordRu, savedSentences)
         }
-        return buildSentenceResponse(normalizedWord, wordRu, savedSentences)
+
+        val generatedPairs = generateTranslateAndSaveSync(
+          word = normalizedWord,
+          wordRu = wordRu,
+          count = missingForRequest
+        )
+        val backgroundCount = (generationBatchSize - missingForRequest).coerceAtLeast(0)
+        scheduleBackgroundGeneration(normalizedWord, wordRu, backgroundCount)
+
+        return@withWordLock SentenceResponse(
+          word = normalizedWord,
+          wordRu = wordRu,
+          sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } + generatedPairs.take(count - savedSentences.size)
+        )
       }
 
-      val generatedPairs = generateTranslateAndSaveSync(
-        word = normalizedWord,
-        wordRu = wordRu,
-        count = missingForRequest
-      )
-      val backgroundCount = (generationBatchSize - missingForRequest).coerceAtLeast(0)
-      scheduleBackgroundGeneration(normalizedWord, wordRu, backgroundCount)
+      val syncCount = count.coerceAtMost(generationBatchSize)
+      val asyncCount = generationBatchSize - syncCount
+      val wordRu = translateSafely(normalizedWord)
+      val syncPairs = generateTranslateAndSaveSync(normalizedWord, wordRu, syncCount)
 
-      return SentenceResponse(
-        word = normalizedWord,
-        wordRu = wordRu,
-        sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } + generatedPairs.take(count - savedSentences.size)
-      )
-    }
-
-    val syncCount = count.coerceAtMost(generationBatchSize)
-    val asyncCount = generationBatchSize - syncCount
-    val wordRu = translateSafely(normalizedWord)
-    val syncPairs = generateTranslateAndSaveSync(normalizedWord, wordRu, syncCount)
-
-    backgroundScope.launch {
-      supervisorScope {
-        launch { generateAndSaveWordInfo(normalizedWord) }
-        if (asyncCount > 0) {
-          launch { generateTranslateAndSave(normalizedWord, wordRu, asyncCount) }
+      backgroundScope.launch {
+        supervisorScope {
+          launch { generateAndSaveWordInfo(normalizedWord) }
+          if (asyncCount > 0) {
+            launch { scheduleBackgroundGeneration(normalizedWord, wordRu, asyncCount) }
+          }
         }
       }
-    }
 
-    return SentenceResponse(
-      word = normalizedWord,
-      wordRu = wordRu,
-      sentences = syncPairs
-    )
+      SentenceResponse(
+        word = normalizedWord,
+        wordRu = wordRu,
+        sentences = syncPairs
+      )
+    }
   }
 
   fun getWordInfo(word: String): WordInfoResponse? {
@@ -193,6 +201,9 @@ class SentenceGenerationService(
       sentences = sentences.map { TranslatedSentence(it.text, it.textRu) }
     )
 
+  private fun <T> withWordLock(word: String, action: () -> T): T =
+    wordLocks.computeIfAbsent(word) { ReentrantLock() }.withLock(action)
+
   private fun generateTranslateAndSaveSync(
     word: String,
     wordRu: String,
@@ -214,7 +225,9 @@ class SentenceGenerationService(
 
     backgroundScope.launch {
       try {
-        generateTranslateAndSave(word, wordRu, count)
+        withWordLock(word) {
+          generateTranslateAndSave(word, wordRu, count)
+        }
       } finally {
         backgroundGenerationWords.remove(word)
       }
@@ -228,25 +241,37 @@ class SentenceGenerationService(
       val pairs = sentences.mapIndexed { idx, en ->
         TranslatedSentence(en, translations.getOrNull(idx).orEmpty())
       }
-      val entities = pairs.map {
-        Sentence(word = word, wordRu = wordRu, text = it.text, textRu = it.textRu)
-      }
-      sentenceRepository.saveAll(entities)
-      log.info("Successfully generated and saved {} async sentence(s) for word '{}'", entities.size, word)
+      val savedCount = saveSentences(word, wordRu, pairs)
+      log.info("Successfully generated {} and saved {} async sentence(s) for word '{}'", pairs.size, savedCount, word)
     } catch (ex: Exception) {
       log.error("Failed to generate/save async sentences for word '{}': {}", word, ex.message, ex)
     }
   }
 
-  private fun saveSentences(word: String, wordRu: String, sentences: List<TranslatedSentence>) {
-    try {
-      val entities = sentences.map {
-        Sentence(word = word, wordRu = wordRu, text = it.text, textRu = it.textRu)
+  private fun saveSentences(word: String, wordRu: String, sentences: List<TranslatedSentence>): Int {
+    if (sentences.isEmpty()) return 0
+
+    return try {
+      val uniqueSentences = sentences.distinctBy { it.text }
+      val existingTexts = sentenceRepository.findExistingTexts(
+        word = word,
+        texts = uniqueSentences.map { it.text }
+      ).toSet()
+      val entities = uniqueSentences
+        .filterNot { it.text in existingTexts }
+        .map { Sentence(word = word, wordRu = wordRu, text = it.text, textRu = it.textRu) }
+
+      if (entities.isEmpty()) {
+        log.info("No new sentences to save for word '{}'", word)
+        return 0
       }
+
       sentenceRepository.saveAll(entities)
-      log.info("Successfully saved {} sentence(s) for word '{}'", sentences.size, word)
+      log.info("Successfully saved {} sentence(s) for word '{}'", entities.size, word)
+      entities.size
     } catch (ex: Exception) {
       log.error("Failed to save sentences for word '{}': {}", word, ex.message, ex)
+      0
     }
   }
 

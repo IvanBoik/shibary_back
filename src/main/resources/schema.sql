@@ -9,6 +9,15 @@ CREATE TABLE IF NOT EXISTS sentence (
 
 CREATE INDEX IF NOT EXISTS idx_sentence_word ON sentence (word);
 
+DELETE FROM sentence s
+WHERE s.id NOT IN (
+    SELECT MIN(id)
+    FROM sentence
+    GROUP BY word, text
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sentence_word_text ON sentence (word, text);
+
 CREATE TABLE IF NOT EXISTS word_info (
     id         BIGSERIAL PRIMARY KEY,
     word       VARCHAR(255) NOT NULL UNIQUE,

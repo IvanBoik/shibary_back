@@ -6,10 +6,11 @@ import org.springframework.data.repository.CrudRepository
 
 interface SentenceRepository : CrudRepository<Sentence, Long> {
 
-  fun existsByWord(word: String): Boolean
-
   fun countByWord(word: String): Long
 
   @Query("SELECT * FROM sentence WHERE word = :word ORDER BY id LIMIT :limit OFFSET :offset")
   fun findByWord(word: String, limit: Int, offset: Int): List<Sentence>
+
+  @Query("SELECT text FROM sentence WHERE word = :word AND text IN (:texts)")
+  fun findExistingTexts(word: String, texts: Collection<String>): List<String>
 }
