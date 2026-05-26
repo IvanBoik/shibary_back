@@ -83,10 +83,11 @@ class SentenceGenerationService(
 
         val requestEndOffset = requestedOffset + count
         val missingForRequest = (requestEndOffset - savedCount).coerceAtLeast(0)
-        val shouldPrefetch = requestedOffset >= savedCount - PREFETCH_DISTANCE_FROM_END
+        val shouldPrefetch = savedCount - requestEndOffset <= PREFETCH_DISTANCE_FROM_END
 
         if (missingForRequest == 0) {
           if (shouldPrefetch) {
+            log.info("Prefetching sentences for word $normalizedWord, offset $requestedOffset, count $count")
             scheduleBackgroundGeneration(normalizedWord, wordRu, generationBatchSize)
           }
           return@withWordLock buildSentenceResponse(normalizedWord, wordRu, savedSentences)
@@ -216,7 +217,8 @@ class SentenceGenerationService(
     val pairs = sentences.mapIndexed { idx, en ->
       TranslatedSentence(en, translations.getOrNull(idx).orEmpty())
     }
-    saveSentences(word, wordRu, pairs)
+    val entitiesCount = saveSentences(word, wordRu, pairs)
+    log.info("Successfully saved {} sentence(s) for word '{}'", entitiesCount, word)
     return pairs
   }
 
@@ -267,7 +269,6 @@ class SentenceGenerationService(
       }
 
       sentenceRepository.saveAll(entities)
-      log.info("Successfully saved {} sentence(s) for word '{}'", entities.size, word)
       entities.size
     } catch (ex: Exception) {
       log.error("Failed to save sentences for word '{}': {}", word, ex.message, ex)
