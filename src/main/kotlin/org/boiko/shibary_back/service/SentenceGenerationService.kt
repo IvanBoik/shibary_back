@@ -72,26 +72,17 @@ class SentenceGenerationService(
     val requestedOffset = offset ?: 0
     val generationBatchSize = chadApiProperties.sentenceCount
 
+    tryServeFromDb(normalizedWord, count, requestedOffset, generationBatchSize)?.let { return it }
+
     return withWordLock(normalizedWord) {
+      tryServeFromDb(normalizedWord, count, requestedOffset, generationBatchSize)?.let { return@withWordLock it }
+
       val savedCount = sentenceRepository.countByWord(normalizedWord).toInt()
 
       if (savedCount > 0) {
         val savedSentences = sentenceRepository.findByWord(normalizedWord, count, requestedOffset)
-        val wordRu = savedSentences.firstOrNull()?.wordRu
-          ?: sentenceRepository.findByWord(normalizedWord, 1, 0).firstOrNull()?.wordRu
-          ?: translateSafely(normalizedWord)
-
-        val requestEndOffset = requestedOffset + count
-        val missingForRequest = (requestEndOffset - savedCount).coerceAtLeast(0)
-        val shouldPrefetch = savedCount - requestEndOffset <= PREFETCH_DISTANCE_FROM_END
-
-        if (missingForRequest == 0) {
-          if (shouldPrefetch) {
-            log.info("Prefetching sentences for word $normalizedWord, offset $requestedOffset, count $count")
-            scheduleBackgroundGeneration(normalizedWord, wordRu, generationBatchSize)
-          }
-          return@withWordLock buildSentenceResponse(normalizedWord, wordRu, savedSentences)
-        }
+        val wordRu = resolveWordRu(normalizedWord, savedSentences)
+        val missingForRequest = (requestedOffset + count - savedCount).coerceAtLeast(0)
 
         val generatedPairs = generateTranslateAndSaveSync(
           word = normalizedWord,
@@ -104,7 +95,8 @@ class SentenceGenerationService(
         return@withWordLock SentenceResponse(
           word = normalizedWord,
           wordRu = wordRu,
-          sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } + generatedPairs.take(count - savedSentences.size)
+          sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } +
+            generatedPairs.take(count - savedSentences.size)
         )
       }
 
@@ -129,6 +121,34 @@ class SentenceGenerationService(
       )
     }
   }
+
+  private fun tryServeFromDb(
+    word: String,
+    count: Int,
+    requestedOffset: Int,
+    generationBatchSize: Int
+  ): SentenceResponse? {
+    val savedCount = sentenceRepository.countByWord(word).toInt()
+    if (savedCount <= 0) return null
+
+    val requestEndOffset = requestedOffset + count
+    if (requestEndOffset > savedCount) return null
+
+    val savedSentences = sentenceRepository.findByWord(word, count, requestedOffset)
+    val wordRu = resolveWordRu(word, savedSentences)
+
+    val shouldPrefetch = savedCount - requestEndOffset <= PREFETCH_DISTANCE_FROM_END
+    if (shouldPrefetch) {
+      log.info("Prefetching sentences for word $word, offset $requestedOffset, count $count")
+      scheduleBackgroundGeneration(word, wordRu, generationBatchSize)
+    }
+    return buildSentenceResponse(word, wordRu, savedSentences)
+  }
+
+  private fun resolveWordRu(word: String, savedSentences: List<Sentence>): String =
+    savedSentences.firstOrNull()?.wordRu
+      ?: sentenceRepository.findByWord(word, 1, 0).firstOrNull()?.wordRu
+      ?: translateSafely(word)
 
   fun getWordInfo(word: String): WordInfoResponse? {
     val normalizedWord = word.trim().lowercase()
