@@ -49,12 +49,15 @@ class SentenceGenerationService(
   companion object {
 
     private const val PREFETCH_DISTANCE_FROM_END = 2
+    private const val MAX_SENTENCES_PER_WORD = 50
 
     private const val PROMPT_TEMPLATE =
       """Generate exactly %d unique simple English sentences (about 5 words each) using the word "%s".
                Return ONLY a valid JSON array of strings with no extra text.
                Each sentence must contain the given word.
+               Do not repeat or rephrase any of these already saved sentences: %s
                Example for word "apples": ["I like apples.","She eats apples."]"""
+
 
     private const val WORD_INFO_PROMPT_TEMPLATE =
       """For the English word "%s" provide a short definition, a list of synonyms and a list of antonyms.
@@ -69,8 +72,8 @@ class SentenceGenerationService(
 
   fun getSentences(word: String, count: Int, offset: Int?): SentenceResponse {
     val normalizedWord = word.trim().lowercase()
-    val requestedOffset = offset ?: 0
-    val generationBatchSize = chadApiProperties.sentenceCount
+    val requestedOffset = (offset ?: 0).coerceAtLeast(0)
+    val generationBatchSize = chadApiProperties.sentenceCount.coerceAtMost(MAX_SENTENCES_PER_WORD)
 
     tryServeFromDb(normalizedWord, count, requestedOffset, generationBatchSize)?.let { return it }
 
@@ -82,7 +85,14 @@ class SentenceGenerationService(
       if (savedCount > 0) {
         val savedSentences = sentenceRepository.findByWord(normalizedWord, count, requestedOffset)
         val wordRu = resolveWordRu(normalizedWord, savedSentences)
+        val remainingCapacity = (MAX_SENTENCES_PER_WORD - savedCount).coerceAtLeast(0)
+
+        if (remainingCapacity <= 0) {
+          return@withWordLock buildCyclicSentenceResponse(normalizedWord, wordRu, count, requestedOffset)
+        }
+
         val missingForRequest = (requestedOffset + count - savedCount).coerceAtLeast(0)
+          .coerceAtMost(remainingCapacity)
 
         val generatedPairs = generateTranslateAndSaveSync(
           word = normalizedWord,
@@ -90,18 +100,21 @@ class SentenceGenerationService(
           count = missingForRequest
         )
         val backgroundCount = (generationBatchSize - missingForRequest).coerceAtLeast(0)
+          .coerceAtMost(remainingCapacity - generatedPairs.size)
         scheduleBackgroundGeneration(normalizedWord, wordRu, backgroundCount)
 
-        return@withWordLock SentenceResponse(
-          word = normalizedWord,
-          wordRu = wordRu,
-          sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } +
-            generatedPairs.take(count - savedSentences.size)
-        )
+        val sentences = savedSentences.map { TranslatedSentence(it.text, it.textRu) } +
+          generatedPairs.take(count - savedSentences.size)
+
+        return@withWordLock if (sentences.size == count) {
+          SentenceResponse(normalizedWord, wordRu, sentences)
+        } else {
+          buildCyclicSentenceResponse(normalizedWord, wordRu, count, requestedOffset)
+        }
       }
 
       val syncCount = count.coerceAtMost(generationBatchSize)
-      val asyncCount = generationBatchSize - syncCount
+      val asyncCount = (generationBatchSize - syncCount).coerceAtMost(MAX_SENTENCES_PER_WORD - syncCount)
       val wordRu = translateSafely(normalizedWord)
       val syncPairs = generateTranslateAndSaveSync(normalizedWord, wordRu, syncCount)
 
@@ -122,6 +135,7 @@ class SentenceGenerationService(
     }
   }
 
+
   private fun tryServeFromDb(
     word: String,
     count: Int,
@@ -132,18 +146,25 @@ class SentenceGenerationService(
     if (savedCount <= 0) return null
 
     val requestEndOffset = requestedOffset + count
+    val wordRu = resolveWordRu(word, emptyList())
+
+    if (savedCount >= MAX_SENTENCES_PER_WORD) {
+      return buildCyclicSentenceResponse(word, wordRu, count, requestedOffset)
+    }
+
     if (requestEndOffset > savedCount) return null
 
     val savedSentences = sentenceRepository.findByWord(word, count, requestedOffset)
-    val wordRu = resolveWordRu(word, savedSentences)
 
     val shouldPrefetch = savedCount - requestEndOffset <= PREFETCH_DISTANCE_FROM_END
     if (shouldPrefetch) {
+      val remainingCapacity = (MAX_SENTENCES_PER_WORD - savedCount).coerceAtLeast(0)
       log.info("Prefetching sentences for word $word, offset $requestedOffset, count $count")
-      scheduleBackgroundGeneration(word, wordRu, generationBatchSize)
+      scheduleBackgroundGeneration(word, wordRu, generationBatchSize.coerceAtMost(remainingCapacity))
     }
     return buildSentenceResponse(word, wordRu, savedSentences)
   }
+
 
   private fun resolveWordRu(word: String, savedSentences: List<Sentence>): String =
     savedSentences.firstOrNull()?.wordRu
@@ -170,7 +191,8 @@ class SentenceGenerationService(
     }
 
   private fun generateFromApi(word: String, count: Int): List<String> {
-    val prompt = PROMPT_TEMPLATE.format(count, word)
+    val existingSentences = sentenceRepository.findTextsByWord(word)
+    val prompt = PROMPT_TEMPLATE.format(count, word, objectMapper.writeValueAsString(existingSentences))
     val response = chadApiClient.ask(prompt)
 
     val rawText = response.response
@@ -178,6 +200,7 @@ class SentenceGenerationService(
 
     return parseSentences(rawText)
   }
+
 
   private fun parseSentences(rawText: String): List<String> {
     val jsonArray = extractJsonArray(rawText)
@@ -222,7 +245,24 @@ class SentenceGenerationService(
       sentences = sentences.map { TranslatedSentence(it.text, it.textRu) }
     )
 
+  private fun buildCyclicSentenceResponse(
+    word: String,
+    wordRu: String,
+    count: Int,
+    requestedOffset: Int
+  ): SentenceResponse {
+    val savedSentences = sentenceRepository.findAllByWordOrdered(word)
+    if (savedSentences.isEmpty()) return SentenceResponse(word, wordRu, emptyList())
+
+    val sentences = List(count) { index ->
+      val sentence = savedSentences[(requestedOffset + index) % savedSentences.size]
+      TranslatedSentence(sentence.text, sentence.textRu)
+    }
+    return SentenceResponse(word, wordRu, sentences)
+  }
+
   private fun <T> withWordLock(word: String, action: () -> T): T =
+
     wordLocks.computeIfAbsent(word) { ReentrantLock() }.withLock(action)
 
   private fun generateTranslateAndSaveSync(
@@ -248,7 +288,9 @@ class SentenceGenerationService(
     backgroundScope.launch {
       try {
         withWordLock(word) {
-          generateTranslateAndSave(word, wordRu, count)
+          val savedCount = sentenceRepository.countByWord(word).toInt()
+          val allowedCount = count.coerceAtMost((MAX_SENTENCES_PER_WORD - savedCount).coerceAtLeast(0))
+          generateTranslateAndSave(word, wordRu, allowedCount)
         }
       } finally {
         backgroundGenerationWords.remove(word)
@@ -256,9 +298,13 @@ class SentenceGenerationService(
     }
   }
 
+
   private fun generateTranslateAndSave(word: String, wordRu: String, count: Int) {
+    if (count <= 0) return
+
     try {
       val sentences = generateFromApi(word, count)
+
       val translations = libreTranslateClient.translateBatch(sentences)
       val pairs = sentences.mapIndexed { idx, en ->
         TranslatedSentence(en, translations.getOrNull(idx).orEmpty())
@@ -274,8 +320,16 @@ class SentenceGenerationService(
     if (sentences.isEmpty()) return 0
 
     return try {
-      val uniqueSentences = sentences.distinctBy { it.text }
+      val savedCount = sentenceRepository.countByWord(word).toInt()
+      val remainingCapacity = (MAX_SENTENCES_PER_WORD - savedCount).coerceAtLeast(0)
+      if (remainingCapacity <= 0) {
+        log.info("Sentence limit reached for word '{}', skipping save", word)
+        return 0
+      }
+
+      val uniqueSentences = sentences.distinctBy { it.text }.take(remainingCapacity)
       val existingTexts = sentenceRepository.findExistingTexts(
+
         word = word,
         texts = uniqueSentences.map { it.text }
       ).toSet()

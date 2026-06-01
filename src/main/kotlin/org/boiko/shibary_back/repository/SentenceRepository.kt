@@ -13,4 +13,10 @@ interface SentenceRepository : CrudRepository<Sentence, Long> {
 
   @Query("SELECT text FROM sentence WHERE word = :word AND text IN (:texts)")
   fun findExistingTexts(word: String, texts: Collection<String>): List<String>
+
+  @Query("SELECT * FROM sentence WHERE word = :word ORDER BY id")
+  fun findAllByWordOrdered(word: String): List<Sentence>
+
+  @Query("SELECT text FROM sentence WHERE word = :word ORDER BY id")
+  fun findTextsByWord(word: String): List<String>
 }
