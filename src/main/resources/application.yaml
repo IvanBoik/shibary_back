@@ -24,6 +24,14 @@ libretranslate:
 server:
   port: ${SERVER_PORT:8080}
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 logging:
   level:
     org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter: ERROR
@@ -59,6 +67,14 @@ spring.boot.admin:
       metadata:
         user.name: ${admin.security.username}
         user.password: ${admin.security.password}
+
+auth:
+  jwt-secret: ${JWT_SECRET:dev-only-change-me-please-use-env-secret-with-32-chars}
+  issuer: ${JWT_ISSUER:shibary-back}
+  audience: ${JWT_AUDIENCE:shibary-mobile}
+  access-ttl-seconds: ${ACCESS_TTL_SECONDS:900}
+  refresh-ttl-days: ${REFRESH_TTL_DAYS:30}
+  google-web-client-id: ${GOOGLE_WEB_CLIENT_ID:}
 
 admin:
   security:

@@ -1,5 +1,7 @@
 package org.boiko.shibary_back.controller
 
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.boiko.shibary_back.dto.SentenceRequest
 import org.boiko.shibary_back.dto.SentenceResponse
 import org.boiko.shibary_back.service.SentenceGenerationService
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
+@Tag(name = "Sentences", description = "Публичная генерация предложений и информации о слове (без авторизации)")
 @RestController
 @RequestMapping("/api/sentences")
 class SentenceController(private val sentenceService: SentenceGenerationService) {
@@ -20,6 +23,7 @@ class SentenceController(private val sentenceService: SentenceGenerationService)
     private const val MAX_COUNT = 10
   }
 
+  @Operation(summary = "Сгенерировать примеры предложений для слова")
   @PostMapping
   fun getSentences(@RequestBody request: SentenceRequest): ResponseEntity<Any> {
     if (request.word.isBlank()) {
@@ -38,6 +42,7 @@ class SentenceController(private val sentenceService: SentenceGenerationService)
     return ResponseEntity.ok(result)
   }
 
+  @Operation(summary = "Получить определение, синонимы и антонимы слова")
   @GetMapping("/word-info")
   fun getWordInfo(@RequestParam word: String): ResponseEntity<Any> {
     if (word.isBlank()) {

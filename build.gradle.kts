@@ -33,6 +33,7 @@ dependencies {
   implementation("de.codecentric:spring-boot-admin-starter-server")
   implementation("de.codecentric:spring-boot-admin-starter-client")
   implementation("org.springframework.boot:spring-boot-starter-security")
+  implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
 
   testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
   testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")

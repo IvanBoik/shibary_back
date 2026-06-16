@@ -4,9 +4,11 @@ import de.codecentric.boot.admin.server.config.AdminServerProperties
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.crypto.factory.PasswordEncoderFactories
@@ -14,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher.pathPattern
 import java.util.UUID
@@ -46,12 +49,41 @@ class SecurityConfig(
     val admin = User.builder()
       .username(username)
       .password(encoder.encode(password))
-      .roles("ADMIN")
+      .roles(ADMIN_ROLE)
       .build()
     return InMemoryUserDetailsManager(admin)
   }
 
   @Bean
+  @Order(0)
+  fun docsSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    http
+      .securityMatcher("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/v3/api-docs.yaml")
+      .authorizeHttpRequests { it.anyRequest().hasRole(ADMIN_ROLE) }
+      .httpBasic(Customizer.withDefaults())
+      .csrf { it.disable() }
+    return http.build()
+  }
+
+  @Bean
+  @Order(1)
+  fun apiSecurityFilterChain(http: HttpSecurity, jwtAuthenticationFilter: JwtAuthenticationFilter): SecurityFilterChain {
+    http
+      .securityMatcher("/api/**")
+      .csrf { it.disable() }
+      .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+      .authorizeHttpRequests { authorize ->
+        authorize
+          .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/sync/**").authenticated()
+          .anyRequest().permitAll()
+      }
+      .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)
+
+    return http.build()
+  }
+
+  @Bean
+  @Order(2)
   fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
     val ctx = adminServer.contextPath
 
@@ -88,5 +120,9 @@ class SecurityConfig(
       }
 
     return http.build()
+  }
+
+  companion object {
+    private const val ADMIN_ROLE = "ADMIN"
   }
 }
