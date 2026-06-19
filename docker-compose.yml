@@ -34,6 +34,7 @@ services:
 
   shibary-back:
     build: .
+    image: shibary-back:latest
     container_name: shibary-back
     restart: unless-stopped
     ports:
@@ -51,8 +52,19 @@ services:
       LIBRETRANSLATE_URL: http://libretranslate:5000
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
-      SBA_CLIENT_URL: http://shibary-back:8080/admin
+      SBA_CLIENT_URL: http://shibary-admin:8080/admin
       SBA_SERVICE_BASE_URL: http://shibary-back:8080
+
+  shibary-admin:
+    image: shibary-back:latest
+    container_name: shibary-admin
+    restart: unless-stopped
+    ports:
+      - "9091:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: admin
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
 
 volumes:
   pgdata:

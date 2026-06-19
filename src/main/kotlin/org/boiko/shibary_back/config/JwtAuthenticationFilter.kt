@@ -11,11 +11,13 @@ import org.boiko.shibary_back.service.JwtService
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.context.annotation.Profile
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 
 @Component
+@Profile("!admin")
 class JwtAuthenticationFilter(
   private val jwtService: JwtService,
   private val objectMapper: ObjectMapper,

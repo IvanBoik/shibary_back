@@ -1,11 +1,10 @@
 package org.boiko.shibary_back.config
 
-import de.codecentric.boot.admin.server.config.AdminServerProperties
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Profile
 import org.springframework.core.annotation.Order
-import org.springframework.http.HttpMethod
 import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
@@ -15,23 +14,23 @@ import org.springframework.security.crypto.factory.PasswordEncoderFactories
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher.pathPattern
 import java.util.UUID
 
 /**
- * Spring Security setup for Spring Boot Admin UI and Actuator endpoints.
+ * Spring Security setup shared by every deployment of this artifact.
  *
- * - The Admin UI ([/admin]) and Actuator endpoints ([/actuator]) require login.
- * - All other application endpoints stay open (current API has no auth).
- * - HTTP Basic is enabled so the SBA client can self-register, and CSRF is disabled
- *   for the SBA registration/instance callbacks and actuator endpoints.
+ * - Actuator endpoints ([/actuator]) require HTTP Basic auth (used both by the local app
+ *   and scraped by the external Spring Boot Admin server).
+ * - Swagger/OpenAPI docs require an admin login.
+ * - The [/api] endpoints use stateless JWT auth.
+ *
+ * The Spring Boot Admin UI itself lives in [AdminServerConfig], which is only active in the
+ * `admin` profile (the dedicated admin container).
  */
 @Configuration
 class SecurityConfig(
-  private val adminServer: AdminServerProperties,
   @Value("\${admin.security.username:admin}") private val username: String,
   @Value("\${admin.security.password:}") private val rawPassword: String,
 ) {
@@ -67,6 +66,7 @@ class SecurityConfig(
 
   @Bean
   @Order(1)
+  @Profile("!admin")
   fun apiSecurityFilterChain(http: HttpSecurity, jwtAuthenticationFilter: JwtAuthenticationFilter): SecurityFilterChain {
     http
       .securityMatcher("/api/**")
@@ -84,40 +84,17 @@ class SecurityConfig(
 
   @Bean
   @Order(2)
-  fun securityFilterChain(http: HttpSecurity): SecurityFilterChain {
-    val ctx = adminServer.contextPath
-
-    val successHandler = SavedRequestAwareAuthenticationSuccessHandler().apply {
-      setTargetUrlParameter("redirectTo")
-      setDefaultTargetUrl("$ctx/")
-    }
-
+  fun actuatorSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
     http
-      .securityMatcher("$ctx/**", "/actuator/**")
+      .securityMatcher("/actuator/**")
       .authorizeHttpRequests { authorize ->
         authorize
-          .requestMatchers(
-            pathPattern("$ctx/assets/**"),
-            pathPattern("$ctx/login"),
-            pathPattern("$ctx/variables.css"),
-          ).permitAll()
-          .anyRequest().authenticated()
+          .requestMatchers(pathPattern("/actuator/health/**"), pathPattern("/actuator/info")).permitAll()
+          .anyRequest().hasRole(ADMIN_ROLE)
       }
-      .formLogin { form ->
-        form.loginPage("$ctx/login").successHandler(successHandler).permitAll()
-      }
-      .logout { logout -> logout.logoutUrl("$ctx/logout") }
       .httpBasic(Customizer.withDefaults())
-      .csrf { csrf ->
-        csrf
-          .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-          // SBA client -> server registration and actuator callbacks
-          .ignoringRequestMatchers(
-            pathPattern(HttpMethod.POST, "$ctx/instances"),
-            pathPattern(HttpMethod.DELETE, "$ctx/instances/*"),
-            pathPattern("/actuator/**"),
-          )
-      }
+      // Stateless callbacks scraped by the external Spring Boot Admin server.
+      .csrf { it.disable() }
 
     return http.build()
   }
