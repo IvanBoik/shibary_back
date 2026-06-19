@@ -70,11 +70,11 @@ spring.boot.admin:
 
 auth:
   jwt-secret: ${JWT_SECRET:dev-only-change-me-please-use-env-secret-with-32-chars}
-  issuer: ${JWT_ISSUER:shibary-back}
-  audience: ${JWT_AUDIENCE:shibary-mobile}
-  access-ttl-seconds: ${ACCESS_TTL_SECONDS:900}
-  refresh-ttl-days: ${REFRESH_TTL_DAYS:30}
-  google-web-client-id: ${GOOGLE_WEB_CLIENT_ID:}
+  issuer: ${JWT_ISSUER}
+  audience: ${JWT_AUDIENCE}
+  access-ttl-seconds: ${ACCESS_TTL_SECONDS}
+  refresh-ttl-days: ${REFRESH_TTL_DAYS}
+  google-web-client-id: ${GOOGLE_WEB_CLIENT_ID}
 
 admin:
   security:

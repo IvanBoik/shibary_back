@@ -6,6 +6,7 @@ import org.boiko.shibary_back.model.StoredRefreshToken
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 import java.sql.ResultSet
+import java.sql.Timestamp
 import java.time.Instant
 import java.util.*
 
@@ -92,7 +93,7 @@ class AuthRepository(private val jdbc: NamedParameterJdbcTemplate) {
         INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, revoked)
         VALUES (:id, :userId, :tokenHash, :expiresAt, false)
       """.trimIndent(),
-      mapOf("id" to UUID.randomUUID(), "userId" to userId, "tokenHash" to tokenHash, "expiresAt" to expiresAt),
+      mapOf("id" to UUID.randomUUID(), "userId" to userId, "tokenHash" to tokenHash, "expiresAt" to Timestamp.from(expiresAt)),
     )
   }
 

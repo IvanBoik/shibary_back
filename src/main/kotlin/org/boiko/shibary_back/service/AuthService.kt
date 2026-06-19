@@ -1,5 +1,6 @@
 package org.boiko.shibary_back.service
 
+import org.boiko.shibary_back.config.AuthProperties
 import org.boiko.shibary_back.dto.AuthResponse
 import org.boiko.shibary_back.dto.RefreshResponse
 import org.boiko.shibary_back.dto.UserDto
@@ -22,7 +23,7 @@ class AuthService(
   private val passwordEncoder: PasswordEncoder,
   private val jwtService: JwtService,
   private val googleAuthService: GoogleAuthService,
-  private val properties: org.boiko.shibary_back.config.AuthProperties,
+  private val properties: AuthProperties,
 ) {
 
   @Transactional
