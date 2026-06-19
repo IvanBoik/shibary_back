@@ -15,7 +15,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           debug: true
-          envs: CHAD_API_KEY,ADMIN_USERNAME,ADMIN_PASSWORD
+          envs: ALL_SECRETS
           script: |
             set -e
             REPO_DIR=/home/deploy/shibary_back
@@ -27,15 +27,19 @@ jobs:
             git fetch --all
             git reset --hard origin/master
 
-            # формируем .env на сервере из переменных окружения сессии.
-            # 'EOF' без кавычек -> переменные подставляются shell'ом,
-            # значения не цитируем, чтобы docker compose не воспринял кавычки буквально.
-            cat > .env <<EOF
-            CHAD_API_KEY=${CHAD_API_KEY}
-            ADMIN_USERNAME=${ADMIN_USERNAME}
-            ADMIN_PASSWORD=${ADMIN_PASSWORD}
-            EOF
-            chmod 600 .env
+            # формируем .env из всех секретов репозитория (ALL_SECRETS — JSON),
+            # исключая инфраструктурные ключи. Новые секреты подхватываются
+            # автоматически, без правки workflow.
+            umask 077
+            TMP_ENV="$(mktemp .env.XXXXXX)"
+            echo "$ALL_SECRETS" | jq -r '
+              ["SSH_HOST","SSH_USER","SSH_KEY","github_token"] as $exclude
+              | to_entries[]
+              | select(.key as $k | $exclude | index($k) | not)
+              | "\(.key)=\(.value)"
+            ' > "$TMP_ENV"
+            chmod 600 "$TMP_ENV"
+            mv "$TMP_ENV" .env
 
             # тянем только внешние образы; shibary-back/shibary-admin
             # собираются локально из Dockerfile (см. build: .)
@@ -43,6 +47,4 @@ jobs:
             docker compose up -d --build --force-recreate shibary-back shibary-admin
             docker image prune -f
         env:
-          CHAD_API_KEY: ${{ secrets.CHAD_API_KEY }}
-          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ALL_SECRETS: ${{ toJSON(secrets) }}
