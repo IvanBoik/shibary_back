@@ -37,8 +37,10 @@ jobs:
             EOF
             chmod 600 .env
 
-            docker compose pull
-            docker compose up -d --build --force-recreate shibary-back
+            # тянем только внешние образы; shibary-back/shibary-admin
+            # собираются локально из Dockerfile (см. build: .)
+            docker compose pull postgres libretranslate
+            docker compose up -d --build --force-recreate shibary-back shibary-admin
             docker image prune -f
         env:
           CHAD_API_KEY: ${{ secrets.CHAD_API_KEY }}
