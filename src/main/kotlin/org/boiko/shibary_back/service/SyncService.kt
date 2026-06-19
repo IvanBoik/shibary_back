@@ -5,12 +5,15 @@ import org.boiko.shibary_back.repository.StoredGameScore
 import org.boiko.shibary_back.repository.StoredSettings
 import org.boiko.shibary_back.repository.StoredWord
 import org.boiko.shibary_back.repository.SyncRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
 
 @Service
 class SyncService(private val syncRepository: SyncRepository) {
+
+  private val log = LoggerFactory.getLogger(javaClass)
 
   @Transactional
   fun sync(userId: UUID, request: SyncRequest): SyncResponse {
@@ -56,12 +59,17 @@ class SyncService(private val syncRepository: SyncRepository) {
     }
 
     val pull = pullChanges(userId, cursor, PULL_LIMIT, forcedWords, forcedSettings, forcedScores)
-    return SyncResponse(
+    val response = SyncResponse(
       cursor = pull.cursor.toString(),
       serverChanges = pull.changes,
       applied = AppliedSyncDto(appliedWords, appliedScores, settingsAccepted),
       conflicts = conflicts.takeIf { it.isNotEmpty() },
     )
+    log.debug(
+      "Sync finished for user '{}': appliedWords={}, appliedScores={}, settingsAccepted={}, conflicts={}",
+      userId, appliedWords, appliedScores, settingsAccepted, conflicts.size
+    )
+    return response
   }
 
   @Transactional(readOnly = true)
@@ -76,6 +84,10 @@ class SyncService(private val syncRepository: SyncRepository) {
       syncRepository.maxRevision(userId),
     ).max()
 
+    log.debug(
+      "Bootstrap finished for user '{}': words={}, gameScores={}, hasSettings={}, cursor={}",
+      userId, words.size, gameScores.size, settings != null, cursor
+    )
     return SyncResponse(
       cursor = cursor.toString(),
       serverChanges = SyncChangesDto(

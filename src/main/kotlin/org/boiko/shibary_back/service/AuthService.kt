@@ -6,6 +6,7 @@ import org.boiko.shibary_back.dto.RefreshResponse
 import org.boiko.shibary_back.dto.UserDto
 import org.boiko.shibary_back.model.AppUser
 import org.boiko.shibary_back.repository.AuthRepository
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -26,14 +27,20 @@ class AuthService(
   private val properties: AuthProperties,
 ) {
 
+  private val log = LoggerFactory.getLogger(javaClass)
+
   @Transactional
   fun register(email: String, password: String, displayName: String?): AuthResponse {
     validateEmailAndPassword(email, password)
     if (authRepository.findUserByEmail(email) != null) {
+      log.warn("Registration rejected: email '{}' is already registered", email)
       throw ApiException("EMAIL_ALREADY_EXISTS", "Email is already registered", HttpStatus.CONFLICT)
     }
     val passwordHash = passwordEncoder.encode(password)
-      ?: throw ApiException("INTERNAL", "Password hashing failed", HttpStatus.INTERNAL_SERVER_ERROR)
+      ?: run {
+        log.error("Password hashing returned null for email '{}'", email)
+        throw ApiException("INTERNAL", "Password hashing failed", HttpStatus.INTERNAL_SERVER_ERROR)
+      }
     val user = authRepository.createPasswordUser(email, passwordHash, displayName?.trim()?.ifBlank { null })
     return issueAuthResponse(user)
   }
@@ -42,6 +49,7 @@ class AuthService(
   fun login(email: String, password: String): AuthResponse {
     val user = authRepository.findUserByEmail(email)
     if (user?.passwordHash == null || !passwordEncoder.matches(password, user.passwordHash)) {
+      log.warn("Login failed: invalid credentials for email '{}'", email)
       throw ApiException("INVALID_CREDENTIALS", "Email or password is incorrect", HttpStatus.UNAUTHORIZED)
     }
     return issueAuthResponse(user)
@@ -50,6 +58,7 @@ class AuthService(
   @Transactional
   fun loginWithGoogle(idToken: String): AuthResponse {
     if (idToken.isBlank()) {
+      log.warn("Google login rejected: idToken is blank")
       throw ApiException("VALIDATION_ERROR", "idToken must not be blank", HttpStatus.UNPROCESSABLE_ENTITY)
     }
     val tokenInfo = googleAuthService.verify(idToken)
@@ -63,10 +72,14 @@ class AuthService(
     val tokenHash = hashToken(refreshToken)
     val storedToken = authRepository.findRefreshToken(tokenHash)
     if (storedToken == null || storedToken.revoked || storedToken.expiresAt.isBefore(Instant.now())) {
+      log.warn("Refresh rejected: refresh token is missing, revoked or expired")
       throw ApiException("INVALID_TOKEN", "Invalid refresh token", HttpStatus.UNAUTHORIZED)
     }
     val user = authRepository.findUserById(storedToken.userId)
-      ?: throw ApiException("INVALID_TOKEN", "Invalid refresh token", HttpStatus.UNAUTHORIZED)
+      ?: run {
+        log.warn("Refresh rejected: user '{}' for refresh token not found", storedToken.userId)
+        throw ApiException("INVALID_TOKEN", "Invalid refresh token", HttpStatus.UNAUTHORIZED)
+      }
 
     authRepository.revokeRefreshToken(tokenHash)
     val newRefreshToken = createRefreshToken(user.id)
@@ -80,8 +93,13 @@ class AuthService(
     }
   }
 
-  fun getUser(userId: UUID): UserDto = authRepository.findUserById(userId)?.toDto()
-    ?: throw ApiException("INVALID_TOKEN", "User not found", HttpStatus.UNAUTHORIZED)
+  fun getUser(userId: UUID): UserDto {
+    return authRepository.findUserById(userId)?.toDto()
+      ?: run {
+        log.warn("User '{}' not found", userId)
+        throw ApiException("INVALID_TOKEN", "User not found", HttpStatus.UNAUTHORIZED)
+      }
+  }
 
   private fun issueAuthResponse(user: AppUser): AuthResponse = AuthResponse(
     user = user.toDto(),

@@ -2,6 +2,7 @@ package org.boiko.shibary_back.service
 
 import org.boiko.shibary_back.config.AuthProperties
 import org.boiko.shibary_back.model.AppUser
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.nio.charset.StandardCharsets
@@ -14,6 +15,8 @@ import javax.crypto.spec.SecretKeySpec
 
 @Service
 class JwtService(private val properties: AuthProperties) {
+
+  private val log = LoggerFactory.getLogger(javaClass)
 
   fun createAccessToken(user: AppUser): String {
     val now = Instant.now().epochSecond
@@ -46,12 +49,14 @@ class JwtService(private val properties: AuthProperties) {
 
       if (issuer != properties.issuer || audience != properties.audience) invalidToken()
       if (Instant.now().epochSecond >= expiresAt) {
+        log.warn("Access token expired for subject '{}'", subject)
         throw ApiException("TOKEN_EXPIRED", "Access token has expired", HttpStatus.UNAUTHORIZED)
       }
       return UUID.fromString(subject)
     } catch (ex: ApiException) {
       throw ex
-    } catch (_: Exception) {
+    } catch (ex: Exception) {
+      log.warn("Failed to validate access token: {}", ex.message, ex)
       invalidToken()
     }
   }
@@ -90,7 +95,10 @@ class JwtService(private val properties: AuthProperties) {
   private fun constantTimeEquals(left: String, right: String): Boolean =
     MessageDigest.isEqual(left.toByteArray(StandardCharsets.UTF_8), right.toByteArray(StandardCharsets.UTF_8))
 
-  private fun invalidToken(): Nothing = throw ApiException("INVALID_TOKEN", "Invalid token", HttpStatus.UNAUTHORIZED)
+  private fun invalidToken(): Nothing {
+    log.warn("Rejecting invalid access token")
+    throw ApiException("INVALID_TOKEN", "Invalid token", HttpStatus.UNAUTHORIZED)
+  }
 
   companion object {
     private const val ALGORITHM = "HS256"

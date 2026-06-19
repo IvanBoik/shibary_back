@@ -71,6 +71,7 @@ class SentenceGenerationService(
   }
 
   fun getSentences(word: String, count: Int, offset: Int?): SentenceResponse {
+    log.debug("getSentences requested for word '{}', count {}, offset {}", word, count, offset)
     val normalizedWord = word.trim().lowercase()
     val requestedOffset = (offset ?: 0).coerceAtLeast(0)
     val generationBatchSize = chadApiProperties.sentenceCount.coerceAtMost(MAX_SENTENCES_PER_WORD)
@@ -173,7 +174,10 @@ class SentenceGenerationService(
 
   fun getWordInfo(word: String): WordInfoResponse? {
     val normalizedWord = word.trim().lowercase()
-    val entity = wordInfoRepository.findByWord(normalizedWord) ?: return null
+    val entity = wordInfoRepository.findByWord(normalizedWord) ?: run {
+      log.debug("No word info found for word '{}'", normalizedWord)
+      return null
+    }
     return WordInfoResponse(
       word = entity.word,
       definition = entity.definition,
