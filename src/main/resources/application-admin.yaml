@@ -16,8 +16,13 @@ spring:
       mode: never
   boot:
     admin:
+      # Re-enable the admin server here (it is disabled in the default profile to keep the SBA
+      # server-side notifier autoconfiguration from loading in the main application).
+      server:
+        enabled: true
       client:
         enabled: false
+
       ui:
         # Extra link in the SBA navigation pointing to the user-management page.
         # The page is served by the main application (which owns the database), so this must be an
