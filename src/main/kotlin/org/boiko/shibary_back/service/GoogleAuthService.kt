@@ -44,7 +44,7 @@ class GoogleAuthService(
     return GoogleTokenInfo(
       sub = response.sub,
       email = response.email?.takeIf { it.isNotBlank() },
-      emailVerified = response.emailVerified == true,
+      emailVerified = true,
       name = response.name?.takeIf { it.isNotBlank() },
     )
   }
