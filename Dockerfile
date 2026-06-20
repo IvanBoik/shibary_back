@@ -1,28 +1,24 @@
 # syntax=docker/dockerfile:1
 
 # --- Build stage ---
-FROM eclipse-temurin:21-jdk AS build
+# Use the official Gradle image: the Gradle distribution is already baked in, so the build
+# never downloads gradle-*-bin.zip from services.gradle.org (the source of the CI timeout).
+FROM gradle:9.3.1-jdk21 AS build
 
 WORKDIR /app
 
-# Keep the Gradle distribution (wrapper/dists) and dependency caches in GRADLE_USER_HOME
-# so the BuildKit cache mount below can persist them across builds.
-ENV GRADLE_USER_HOME=/root/.gradle
+# Persist resolved dependencies between builds via the BuildKit cache mount.
+ENV GRADLE_USER_HOME=/home/gradle/.gradle
 
-COPY gradlew settings.gradle.kts build.gradle.kts ./
-COPY gradle ./gradle
+COPY settings.gradle.kts build.gradle.kts ./
 
-# Normalize line endings (in case gradlew was committed with CRLF) and cache dependencies.
-# The cache mount preserves the downloaded Gradle distribution and resolved dependencies
-# between builds, avoiding re-downloading gradle-*-bin.zip on every run.
-RUN --mount=type=cache,target=/root/.gradle \
-    sed -i 's/\r$//' gradlew && chmod +x gradlew && ./gradlew dependencies --no-daemon
+RUN --mount=type=cache,target=/home/gradle/.gradle \
+    gradle dependencies --no-daemon
 
 COPY src ./src
 
-RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew bootJar --no-daemon -x test
-
+RUN --mount=type=cache,target=/home/gradle/.gradle \
+    gradle bootJar --no-daemon -x test
 
 # --- Runtime stage ---
 FROM eclipse-temurin:21-jre
