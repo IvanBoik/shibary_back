@@ -68,6 +68,13 @@ management:
 
 spring.boot.admin:
   context-path: /admin
+  # The mail starter (used for email verification) registers a MailSender bean, which would
+  # otherwise trigger SBA's MailNotifier autoconfiguration. That notifier needs an
+  # InstanceRepository, which only exists in the dedicated admin-server process (@EnableAdminServer),
+  # so it must stay disabled here to let the main application start.
+  notify:
+    mail:
+      enabled: false
   client:
     url: ${SBA_CLIENT_URL:http://localhost:${server.port}/admin}
     username: ${admin.security.username}
