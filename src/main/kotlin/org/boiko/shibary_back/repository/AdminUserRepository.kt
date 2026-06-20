@@ -45,6 +45,16 @@ class AdminUserRepository(private val jdbc: NamedParameterJdbcTemplate) {
     mapOf("id" to userId, "banned" to banned),
   )
 
+  /** Marks the email as verified. Returns the number of affected rows (0 when the user does not exist). */
+  fun setEmailVerified(userId: UUID): Int = jdbc.update(
+    """
+      UPDATE users
+      SET email_verified = true, updated_at = NOW()
+      WHERE id = :id
+    """.trimIndent(),
+    mapOf("id" to userId),
+  )
+
   /** Returns the number of affected rows (0 when the user does not exist). */
   fun deleteUser(userId: UUID): Int = jdbc.update(
     "DELETE FROM users WHERE id = :id",

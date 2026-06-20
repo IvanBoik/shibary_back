@@ -8,6 +8,17 @@ spring:
   sql:
     init:
       mode: always
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
 
 chad:
   api:
@@ -75,6 +86,12 @@ auth:
   access-ttl-seconds: ${ACCESS_TTL_SECONDS}
   refresh-ttl-days: ${REFRESH_TTL_DAYS}
   google-web-client-id: ${GOOGLE_WEB_CLIENT_ID}
+  email-verification:
+    code-ttl-seconds: ${EMAIL_CODE_TTL_SECONDS}
+    resend-cooldown-seconds: ${EMAIL_RESEND_COOLDOWN_SECONDS}
+    max-attempts: ${EMAIL_CODE_MAX_ATTEMPTS}
+    code-length: ${EMAIL_CODE_LENGTH}
+    mail-from: ${EMAIL_MAIL_FROM}
 
 admin:
   security:

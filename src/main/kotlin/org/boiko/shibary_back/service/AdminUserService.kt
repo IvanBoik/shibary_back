@@ -5,6 +5,7 @@ import org.boiko.shibary_back.dto.AdminUserPageDto
 import org.boiko.shibary_back.model.AppUser
 import org.boiko.shibary_back.repository.AdminUserRepository
 import org.boiko.shibary_back.repository.AuthRepository
+import org.boiko.shibary_back.repository.EmailVerificationRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
@@ -23,6 +24,7 @@ import java.util.UUID
 class AdminUserService(
   private val adminUserRepository: AdminUserRepository,
   private val authRepository: AuthRepository,
+  private val emailVerificationRepository: EmailVerificationRepository,
   private val passwordEncoder: PasswordEncoder,
 ) {
 
@@ -72,6 +74,18 @@ class AdminUserService(
       authRepository.revokeAllRefreshTokensForUser(userId)
     }
     log.info("Admin set banned={} for user '{}'", banned, userId)
+    return authRepository.findUserById(userId)?.toAdminDto() ?: throw userNotFound(userId)
+  }
+
+  /** Manually marks the email as verified without sending a confirmation code. */
+  @Transactional
+  fun verifyEmail(userId: UUID): AdminUserDto {
+    if (adminUserRepository.setEmailVerified(userId) == 0) {
+      throw userNotFound(userId)
+    }
+    // Drop any pending confirmation challenge so a stale code cannot be reused.
+    emailVerificationRepository.delete(userId)
+    log.info("Admin manually verified email for user '{}'", userId)
     return authRepository.findUserById(userId)?.toAdminDto() ?: throw userNotFound(userId)
   }
 

@@ -5,6 +5,7 @@ import org.boiko.shibary_back.dto.AuthResponse
 import org.boiko.shibary_back.dto.RefreshResponse
 import org.boiko.shibary_back.dto.UserDto
 import org.boiko.shibary_back.model.AppUser
+import org.boiko.shibary_back.model.GoogleTokenInfo
 import org.boiko.shibary_back.repository.AuthRepository
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -24,6 +25,7 @@ class AuthService(
   private val passwordEncoder: PasswordEncoder,
   private val jwtService: JwtService,
   private val googleAuthService: GoogleAuthService,
+  private val emailVerificationService: EmailVerificationService,
   private val properties: AuthProperties,
 ) {
 
@@ -42,6 +44,7 @@ class AuthService(
         throw ApiException("INTERNAL", "Password hashing failed", HttpStatus.INTERNAL_SERVER_ERROR)
       }
     val user = authRepository.createPasswordUser(email, passwordHash, displayName?.trim()?.ifBlank { null })
+    emailVerificationService.startVerification(user)
     return issueAuthResponse(user)
   }
 
@@ -64,9 +67,24 @@ class AuthService(
     }
     val tokenInfo = googleAuthService.verify(idToken)
     val user = authRepository.findUserByOAuth(AuthRepository.GOOGLE_PROVIDER, tokenInfo.sub)
-      ?: authRepository.createGoogleUser(tokenInfo)
+      ?: linkOrCreateGoogleUser(tokenInfo)
     ensureNotBanned(user)
     return issueAuthResponse(user)
+  }
+
+  /**
+   * Resolves the user for a first-time Google sign-in: if an account with the same email already
+   * exists (e.g. created via email/password), links the Google provider to it instead of inserting
+   * a new row (which would violate the unique email constraint); otherwise creates a fresh user.
+   */
+  private fun linkOrCreateGoogleUser(tokenInfo: GoogleTokenInfo): AppUser {
+    val existingByEmail = tokenInfo.email?.let(authRepository::findUserByEmail)
+    if (existingByEmail != null) {
+      authRepository.linkGoogleAccount(existingByEmail.id, tokenInfo.sub)
+      log.info("Linked Google account to existing user '{}' by email", existingByEmail.id)
+      return existingByEmail
+    }
+    return authRepository.createGoogleUser(tokenInfo)
   }
 
   @Transactional

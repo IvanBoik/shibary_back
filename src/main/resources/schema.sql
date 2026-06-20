@@ -65,6 +65,15 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens (user_id);
 
+CREATE TABLE IF NOT EXISTS email_verifications (
+    user_id      UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    code_hash    TEXT NOT NULL,
+    expires_at   TIMESTAMP NOT NULL,
+    attempts     INT NOT NULL DEFAULT 0,
+    last_sent_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS user_sync_state (
     user_id          UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     current_revision BIGINT NOT NULL DEFAULT 0

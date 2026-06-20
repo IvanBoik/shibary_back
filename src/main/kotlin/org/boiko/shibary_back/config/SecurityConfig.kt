@@ -90,7 +90,13 @@ class SecurityConfig(
       .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
       .authorizeHttpRequests { authorize ->
         authorize
-          .requestMatchers("/api/auth/me", "/api/auth/logout", "/api/sync/**").authenticated()
+          .requestMatchers(
+            "/api/auth/me",
+            "/api/auth/logout",
+            "/api/auth/verify-email",
+            "/api/auth/resend-verification",
+            "/api/sync/**",
+          ).authenticated()
           .anyRequest().permitAll()
       }
       .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter::class.java)

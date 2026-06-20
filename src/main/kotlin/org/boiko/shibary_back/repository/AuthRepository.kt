@@ -87,6 +87,29 @@ class AuthRepository(private val jdbc: NamedParameterJdbcTemplate) {
     return findUserById(userId) ?: error("Created Google user was not found")
   }
 
+  /** Links a Google OAuth account to an already existing user (e.g. created via email/password). */
+  fun linkGoogleAccount(userId: UUID, providerUserId: String) {
+    jdbc.update(
+      """
+        INSERT INTO oauth_accounts (id, user_id, provider, provider_user_id)
+        VALUES (:id, :userId, :provider, :providerUserId)
+      """.trimIndent(),
+      mapOf(
+        "id" to UUID.randomUUID(),
+        "userId" to userId,
+        "provider" to GOOGLE_PROVIDER,
+        "providerUserId" to providerUserId,
+      ),
+    )
+  }
+
+  fun markEmailVerified(userId: UUID) {
+    jdbc.update(
+      "UPDATE users SET email_verified = true, updated_at = NOW() WHERE id = :id",
+      mapOf("id" to userId),
+    )
+  }
+
   fun storeRefreshToken(userId: UUID, tokenHash: String, expiresAt: Instant) {
     jdbc.update(
       """

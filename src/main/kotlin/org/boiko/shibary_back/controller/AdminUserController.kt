@@ -49,6 +49,11 @@ class AdminUserController(private val adminUserService: AdminUserService) {
     @RequestParam(defaultValue = "true") banned: Boolean,
   ): ResponseEntity<AdminUserDto> = ResponseEntity.ok(adminUserService.setBanned(id, banned))
 
+  @Operation(summary = "Подтвердить email вручную (без отправки кода)")
+  @PostMapping("/{id}/verify-email")
+  fun verifyEmail(@PathVariable id: UUID): ResponseEntity<AdminUserDto> =
+    ResponseEntity.ok(adminUserService.verifyEmail(id))
+
   @Operation(summary = "Удалить пользователя")
   @DeleteMapping("/{id}")
   fun delete(@PathVariable id: UUID): ResponseEntity<Void> {

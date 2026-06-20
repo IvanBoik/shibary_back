@@ -51,6 +51,12 @@ class JwtAuthenticationFilter(
   companion object {
     private const val AUTHORIZATION_HEADER = "Authorization"
     private const val BEARER_PREFIX = "Bearer "
-    private val PROTECTED_PREFIXES = listOf("/api/sync", "/api/auth/me", "/api/auth/logout")
+    private val PROTECTED_PREFIXES = listOf(
+      "/api/sync",
+      "/api/auth/me",
+      "/api/auth/logout",
+      "/api/auth/verify-email",
+      "/api/auth/resend-verification",
+    )
   }
 }

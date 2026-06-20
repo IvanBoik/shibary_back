@@ -26,3 +26,11 @@ data class GoogleTokenInfo(
   val emailVerified: Boolean,
   val name: String?,
 )
+
+data class EmailVerification(
+  val userId: UUID,
+  val codeHash: String,
+  val expiresAt: Instant,
+  val attempts: Int,
+  val lastSentAt: Instant,
+)

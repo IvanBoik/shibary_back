@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import org.boiko.shibary_back.config.OpenApiConfig
 import org.boiko.shibary_back.dto.ApiErrorResponse
 import org.boiko.shibary_back.dto.AuthResponse
+import org.boiko.shibary_back.dto.EmailVerificationChallengeDto
 import org.boiko.shibary_back.dto.GoogleAuthRequest
 import org.boiko.shibary_back.dto.LoginRequest
 import org.boiko.shibary_back.dto.LogoutRequest
@@ -18,7 +19,9 @@ import org.boiko.shibary_back.dto.RefreshRequest
 import org.boiko.shibary_back.dto.RefreshResponse
 import org.boiko.shibary_back.dto.RegisterRequest
 import org.boiko.shibary_back.dto.UserDto
+import org.boiko.shibary_back.dto.VerifyEmailRequest
 import org.boiko.shibary_back.service.AuthService
+import org.boiko.shibary_back.service.EmailVerificationService
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -32,7 +35,10 @@ import java.util.UUID
 @Tag(name = "Auth", description = "Регистрация, вход (email/пароль и Google) и управление JWT-сессиями")
 @RestController
 @RequestMapping("/api/auth")
-class AuthController(private val authService: AuthService) {
+class AuthController(
+  private val authService: AuthService,
+  private val emailVerificationService: EmailVerificationService,
+) {
 
   @Operation(summary = "Регистрация по email и паролю")
   @ApiResponses(
@@ -144,4 +150,59 @@ class AuthController(private val authService: AuthService) {
   @GetMapping("/me")
   fun me(@Parameter(hidden = true) @AuthenticationPrincipal userId: UUID): ResponseEntity<UserDto> =
     ResponseEntity.ok(authService.getUser(userId))
+
+  @Operation(summary = "Подтверждение email кодом из письма")
+  @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+  @ApiResponses(
+    value = [
+      ApiResponse(
+        responseCode = "200",
+        description = "Email подтверждён",
+        content = [Content(schema = Schema(implementation = EmailVerificationChallengeDto::class))],
+      ),
+      ApiResponse(
+        responseCode = "422",
+        description = "INVALID_CODE / CODE_EXPIRED / CODE_NOT_FOUND — неверный, истёкший или отсутствующий код",
+        content = [Content(schema = Schema(implementation = ApiErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "429",
+        description = "TOO_MANY_ATTEMPTS — слишком много попыток, запросите новый код",
+        content = [Content(schema = Schema(implementation = ApiErrorResponse::class))],
+      ),
+    ],
+  )
+  @PostMapping("/verify-email")
+  fun verifyEmail(
+    @Parameter(hidden = true) @AuthenticationPrincipal userId: UUID,
+    @RequestBody request: VerifyEmailRequest,
+  ): ResponseEntity<EmailVerificationChallengeDto> =
+    ResponseEntity.ok(emailVerificationService.verify(userId, request.code))
+
+  @Operation(summary = "Повторная отправка кода подтверждения (с кулдауном)")
+  @SecurityRequirement(name = OpenApiConfig.BEARER_SCHEME)
+  @ApiResponses(
+    value = [
+      ApiResponse(
+        responseCode = "200",
+        description = "Новый код отправлен",
+        content = [Content(schema = Schema(implementation = EmailVerificationChallengeDto::class))],
+      ),
+      ApiResponse(
+        responseCode = "409",
+        description = "EMAIL_ALREADY_VERIFIED — email уже подтверждён",
+        content = [Content(schema = Schema(implementation = ApiErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "429",
+        description = "RATE_LIMITED — подождите перед повторным запросом",
+        content = [Content(schema = Schema(implementation = ApiErrorResponse::class))],
+      ),
+    ],
+  )
+  @PostMapping("/resend-verification")
+  fun resendVerification(
+    @Parameter(hidden = true) @AuthenticationPrincipal userId: UUID,
+  ): ResponseEntity<EmailVerificationChallengeDto> =
+    ResponseEntity.ok(emailVerificationService.resend(userId))
 }

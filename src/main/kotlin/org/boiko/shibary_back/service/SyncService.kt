@@ -1,22 +1,28 @@
 package org.boiko.shibary_back.service
 
 import org.boiko.shibary_back.dto.*
+import org.boiko.shibary_back.repository.AuthRepository
 import org.boiko.shibary_back.repository.StoredGameScore
 import org.boiko.shibary_back.repository.StoredSettings
 import org.boiko.shibary_back.repository.StoredWord
 import org.boiko.shibary_back.repository.SyncRepository
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
 
 @Service
-class SyncService(private val syncRepository: SyncRepository) {
+class SyncService(
+  private val syncRepository: SyncRepository,
+  private val authRepository: AuthRepository,
+) {
 
   private val log = LoggerFactory.getLogger(javaClass)
 
   @Transactional
   fun sync(userId: UUID, request: SyncRequest): SyncResponse {
+    requireVerifiedEmail(userId)
     val cursor = parseCursor(request.cursor)
     val conflicts = mutableListOf<SyncConflictDto>()
     val forcedWords = linkedMapOf<String, StoredWord>()
@@ -40,7 +46,7 @@ class SyncService(private val syncRepository: SyncRepository) {
     request.clientChanges.settings?.let { settings ->
       val stored = syncRepository.findSettings(userId)
       if (stored == null || settings.updatedAt > stored.dto.updatedAt) {
-        syncRepository.upsertSettings(userId, settings, syncRepository.nextRevision(userId))
+        syncRepository.upsertSettings(userId, settings.syncableOnly(), syncRepository.nextRevision(userId))
         settingsAccepted = true
       } else {
         forcedSettings = stored
@@ -74,6 +80,7 @@ class SyncService(private val syncRepository: SyncRepository) {
 
   @Transactional(readOnly = true)
   fun bootstrap(userId: UUID): SyncResponse {
+    requireVerifiedEmail(userId)
     val words = syncRepository.findAllWords(userId)
     val settings = syncRepository.findSettings(userId)
     val gameScores = syncRepository.findAllGameScores(userId)
@@ -92,7 +99,7 @@ class SyncService(private val syncRepository: SyncRepository) {
       cursor = cursor.toString(),
       serverChanges = SyncChangesDto(
         words = words.map(StoredWord::dto),
-        settings = settings?.dto,
+        settings = settings?.dto?.syncableOnly(),
         gameScores = gameScores.map(StoredGameScore::dto),
       ),
     )
@@ -125,11 +132,29 @@ class SyncService(private val syncRepository: SyncRepository) {
       cursor = maxRevision,
       changes = SyncChangesDto(
         words = mergedWords.map(StoredWord::dto),
-        settings = mergedSettings?.dto,
+        settings = mergedSettings?.dto?.syncableOnly(),
         gameScores = mergedScores.map(StoredGameScore::dto),
       ),
     )
   }
+
+  /**
+   * Keeps only the fields that are allowed to sync across devices (repetition mode and its limits).
+   * Device-local preferences (language, theme, enabled question types, reminders) are dropped
+   * so they are never persisted on the server nor pushed back to other devices.
+   */
+  private fun SettingsSyncDto.syncableOnly(): SettingsSyncDto = SettingsSyncDto(
+    language = null,
+    theme = null,
+    enabledQuestionTypes = emptyList(),
+    repetitionMode = repetitionMode,
+    dailyReviewLimit = dailyReviewLimit,
+    newWordsPerDay = newWordsPerDay,
+    remindersEnabled = null,
+    reminderHour = null,
+    reminderMinute = null,
+    updatedAt = updatedAt,
+  )
 
   private fun mergeWords(pulled: List<StoredWord>, forced: Map<String, StoredWord>): List<StoredWord> {
     val result = linkedMapOf<String, StoredWord>()
@@ -143,6 +168,19 @@ class SyncService(private val syncRepository: SyncRepository) {
     pulled.forEach { result[it.dto.pairCount] = it }
     forced.forEach { (pairCount, score) -> result.putIfAbsent(pairCount, score) }
     return result.values.toList()
+  }
+
+  /**
+   * Sync is only allowed for accounts with a confirmed email. Provider-only accounts (e.g. Google)
+   * are already trusted by the identity provider, so they pass without a local confirmation step.
+   */
+  private fun requireVerifiedEmail(userId: UUID) {
+    val user = authRepository.findUserById(userId)
+      ?: throw ApiException("INVALID_TOKEN", "User not found", HttpStatus.UNAUTHORIZED)
+    if (!user.emailVerified) {
+      log.warn("Sync rejected: email not verified for user '{}'", userId)
+      throw ApiException("EMAIL_NOT_VERIFIED", "Confirm your email to enable synchronization", HttpStatus.FORBIDDEN)
+    }
   }
 
   private fun parseCursor(cursor: String?): Long = cursor?.toLongOrNull()?.takeIf { it >= 0 } ?: 0L
