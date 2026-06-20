@@ -1,6 +1,7 @@
 package org.boiko.shibary_back.service
 
 import org.boiko.shibary_back.dto.AdminUserDto
+import org.boiko.shibary_back.dto.AdminUserPageDto
 import org.boiko.shibary_back.model.AppUser
 import org.boiko.shibary_back.repository.AdminUserRepository
 import org.boiko.shibary_back.repository.AuthRepository
@@ -27,7 +28,25 @@ class AdminUserService(
 
   private val log = LoggerFactory.getLogger(javaClass)
 
-  fun listUsers(): List<AdminUserDto> = adminUserRepository.listUsers().map { it.toAdminDto() }
+  /**
+   * Returns one page of users using offset-based pagination. Page is 0-based; [size] is clamped
+   * to a sane range so a malicious or buggy client cannot request the whole table at once.
+   */
+  fun listUsers(page: Int, size: Int): AdminUserPageDto {
+    val safeSize = size.coerceIn(1, MAX_PAGE_SIZE)
+    val safePage = page.coerceAtLeast(0)
+    val totalItems = adminUserRepository.countUsers()
+    val totalPages = if (totalItems == 0L) 0 else ((totalItems + safeSize - 1) / safeSize).toInt()
+    val items = adminUserRepository.listUsers(limit = safeSize, offset = safePage * safeSize)
+      .map { it.toAdminDto() }
+    return AdminUserPageDto(
+      items = items,
+      page = safePage,
+      size = safeSize,
+      totalItems = totalItems,
+      totalPages = totalPages,
+    )
+  }
 
   @Transactional
   fun createUser(email: String, password: String, displayName: String?): AdminUserDto {
@@ -85,6 +104,7 @@ class AdminUserService(
 
   companion object {
     private const val MIN_PASSWORD_LENGTH = 6
+    private const val MAX_PAGE_SIZE = 100
     private val EMAIL_REGEX = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
   }
 }

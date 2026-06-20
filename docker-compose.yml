@@ -69,6 +69,8 @@ services:
       SPRING_PROFILES_ACTIVE: admin
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      ADMIN_USERS_VIEW_URL: ${ADMIN_USERS_VIEW_URL:-http://localhost:9090/admin/users.html}
+
 
 volumes:
   pgdata:

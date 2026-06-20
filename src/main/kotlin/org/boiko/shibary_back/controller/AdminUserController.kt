@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.boiko.shibary_back.dto.AdminCreateUserRequest
 import org.boiko.shibary_back.dto.AdminUserDto
+import org.boiko.shibary_back.dto.AdminUserPageDto
 import org.boiko.shibary_back.service.AdminUserService
 import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
@@ -28,9 +29,12 @@ import java.util.UUID
 @Profile("!admin")
 class AdminUserController(private val adminUserService: AdminUserService) {
 
-  @Operation(summary = "Список всех пользователей")
+  @Operation(summary = "Список пользователей с постраничной навигацией")
   @GetMapping
-  fun list(): ResponseEntity<List<AdminUserDto>> = ResponseEntity.ok(adminUserService.listUsers())
+  fun list(
+    @RequestParam(defaultValue = "0") page: Int,
+    @RequestParam(defaultValue = "20") size: Int,
+  ): ResponseEntity<AdminUserPageDto> = ResponseEntity.ok(adminUserService.listUsers(page, size))
 
   @Operation(summary = "Создать нового пользователя (email + пароль)")
   @PostMapping

@@ -12,6 +12,18 @@ data class AdminUserDto(
   val banned: Boolean,
 )
 
+/**
+ * One page of users plus the metadata the UI needs to render offset-based navigation
+ * (page numbers and total count).
+ */
+data class AdminUserPageDto(
+  val items: List<AdminUserDto>,
+  val page: Int,
+  val size: Int,
+  val totalItems: Long,
+  val totalPages: Int,
+)
+
 /** Payload to create a new password-based account from the admin panel. */
 data class AdminCreateUserRequest(
   val email: String,

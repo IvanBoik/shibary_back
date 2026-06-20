@@ -33,6 +33,12 @@
     #message.error { background: #fee2e2; color: var(--danger); display: block; }
     #message.success { background: #dcfce7; color: var(--ok); display: block; }
     .empty { color: var(--muted); padding: 16px 0; }
+    .pagination { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    .pagination .info { color: var(--muted); font-size: 13px; }
+    .pagination .spacer { flex: 1; }
+    .pagination select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; min-width: auto; }
+    .pagination button { background: #fff; color: #111827; border: 1px solid var(--border); }
+    .pagination button:not(:disabled):hover { background: var(--bg); }
   </style>
 </head>
 <body>
@@ -68,11 +74,27 @@
       <tbody id="usersBody"></tbody>
     </table>
     <div id="empty" class="empty" style="display:none">Пользователей пока нет.</div>
+    <div class="pagination">
+      <label class="info" for="pageSize">На странице:</label>
+      <select id="pageSize">
+        <option value="10">10</option>
+        <option value="20" selected>20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+      <span class="spacer"></span>
+      <span class="info" id="pageInfo"></span>
+      <button id="prevPage" type="button">← Назад</button>
+      <button id="nextPage" type="button">Вперёд →</button>
+    </div>
   </div>
 </main>
 
 <script>
   const API = "/admin/api/users";
+
+  const state = { page: 0, size: 20, totalPages: 0 };
+
 
   function showMessage(text, type) {
     const el = document.getElementById("message");
@@ -97,9 +119,8 @@
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  function render(users) {
+  function renderRows(users) {
     const body = document.getElementById("usersBody");
-    document.getElementById("count").textContent = users.length;
     document.getElementById("empty").style.display = users.length ? "none" : "block";
     body.innerHTML = users.map(u => `
       <tr>
@@ -116,13 +137,45 @@
       </tr>`).join("");
   }
 
+  function renderPagination(pageData) {
+    state.page = pageData.page;
+    state.size = pageData.size;
+    state.totalPages = pageData.totalPages;
+    document.getElementById("count").textContent = pageData.totalItems;
+    const human = pageData.totalPages === 0 ? 0 : pageData.page + 1;
+    document.getElementById("pageInfo").textContent = `Страница ${human} из ${pageData.totalPages}`;
+    document.getElementById("prevPage").disabled = pageData.page <= 0;
+    document.getElementById("nextPage").disabled = pageData.page >= pageData.totalPages - 1;
+  }
+
   async function load() {
     try {
-      render(await request(API));
+      const pageData = await request(`${API}?page=${state.page}&size=${state.size}`);
+      // If the current page became empty after a deletion, step back to the last non-empty page.
+      if (pageData.items.length === 0 && pageData.page > 0 && pageData.totalPages > 0) {
+        state.page = pageData.totalPages - 1;
+        return load();
+      }
+      renderRows(pageData.items);
+      renderPagination(pageData);
     } catch (e) {
       showMessage(e.message, "error");
     }
   }
+
+  document.getElementById("prevPage").addEventListener("click", () => {
+    if (state.page > 0) { state.page--; load(); }
+  });
+
+  document.getElementById("nextPage").addEventListener("click", () => {
+    if (state.page < state.totalPages - 1) { state.page++; load(); }
+  });
+
+  document.getElementById("pageSize").addEventListener("change", (e) => {
+    state.size = Number(e.target.value);
+    state.page = 0;
+    load();
+  });
 
   document.getElementById("createForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -137,6 +190,7 @@
       });
       e.target.reset();
       showMessage(`Пользователь ${email} создан`, "success");
+      state.page = 0; // The new user is the newest, shown on the first page.
       await load();
     } catch (err) {
       showMessage(err.message, "error");

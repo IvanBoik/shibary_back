@@ -17,13 +17,23 @@ import java.util.UUID
 @Profile("!admin")
 class AdminUserRepository(private val jdbc: NamedParameterJdbcTemplate) {
 
-  fun listUsers(): List<AppUser> = jdbc.query(
+  /** Returns a single page of users ordered by newest first. */
+  fun listUsers(limit: Int, offset: Int): List<AppUser> = jdbc.query(
     """
       SELECT id, email, password_hash, display_name, email_verified, banned
       FROM users
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC, id DESC
+      LIMIT :limit OFFSET :offset
     """.trimIndent(),
+    mapOf("limit" to limit, "offset" to offset),
   ) { rs, _ -> rs.toAppUser() }
+
+  /** Total number of users, used to compute the page count. */
+  fun countUsers(): Long = jdbc.queryForObject(
+    "SELECT COUNT(*) FROM users",
+    emptyMap<String, Any>(),
+    Long::class.java,
+  ) ?: 0L
 
   /** Returns the number of affected rows (0 when the user does not exist). */
   fun setBanned(userId: UUID, banned: Boolean): Int = jdbc.update(

@@ -18,3 +18,13 @@ spring:
     admin:
       client:
         enabled: false
+      ui:
+        # Extra link in the SBA navigation pointing to the user-management page.
+        # The page is served by the main application (which owns the database), so this must be an
+        # absolute URL reachable from the operator's browser (override per environment).
+        external-views:
+          - label: "Users"
+            url: ${ADMIN_USERS_VIEW_URL:http://localhost:8080/admin/users.html}
+            order: 2000
+            iframe: false
+
