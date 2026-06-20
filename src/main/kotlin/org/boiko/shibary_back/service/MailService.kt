@@ -30,7 +30,8 @@ class MailService(
 
     runCatching {
       val mimeMessage = mailSender.createMimeMessage()
-      val helper = MimeMessageHelper(mimeMessage, false, CHARSET)
+      // Multipart mode is required to set both plain-text and HTML alternatives.
+      val helper = MimeMessageHelper(mimeMessage, MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED, CHARSET)
       helper.setFrom(properties.emailVerification.mailFrom)
       helper.setTo(toEmail)
       helper.setSubject(SUBJECT)
