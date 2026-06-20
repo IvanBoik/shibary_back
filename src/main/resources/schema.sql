@@ -35,9 +35,13 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash  TEXT,
     display_name   TEXT,
     email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    banned         BOOLEAN NOT NULL DEFAULT FALSE,
     created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at     TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Ensure the column exists for databases created before the admin panel was introduced.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS banned BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_lower ON users (LOWER(email)) WHERE email IS NOT NULL;
 

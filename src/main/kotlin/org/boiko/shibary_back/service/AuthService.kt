@@ -52,6 +52,7 @@ class AuthService(
       log.warn("Login failed: invalid credentials for email '{}'", email)
       throw ApiException("INVALID_CREDENTIALS", "Email or password is incorrect", HttpStatus.UNAUTHORIZED)
     }
+    ensureNotBanned(user)
     return issueAuthResponse(user)
   }
 
@@ -64,6 +65,7 @@ class AuthService(
     val tokenInfo = googleAuthService.verify(idToken)
     val user = authRepository.findUserByOAuth(AuthRepository.GOOGLE_PROVIDER, tokenInfo.sub)
       ?: authRepository.createGoogleUser(tokenInfo)
+    ensureNotBanned(user)
     return issueAuthResponse(user)
   }
 
@@ -80,6 +82,7 @@ class AuthService(
         log.warn("Refresh rejected: user '{}' for refresh token not found", storedToken.userId)
         throw ApiException("INVALID_TOKEN", "Invalid refresh token", HttpStatus.UNAUTHORIZED)
       }
+    ensureNotBanned(user)
 
     authRepository.revokeRefreshToken(tokenHash)
     val newRefreshToken = createRefreshToken(user.id)
@@ -99,6 +102,13 @@ class AuthService(
         log.warn("User '{}' not found", userId)
         throw ApiException("INVALID_TOKEN", "User not found", HttpStatus.UNAUTHORIZED)
       }
+  }
+
+  private fun ensureNotBanned(user: AppUser) {
+    if (user.banned) {
+      log.warn("Access rejected: user '{}' is banned", user.id)
+      throw ApiException("ACCOUNT_BANNED", "This account has been banned", HttpStatus.FORBIDDEN)
+    }
   }
 
   private fun issueAuthResponse(user: AppUser): AuthResponse = AuthResponse(

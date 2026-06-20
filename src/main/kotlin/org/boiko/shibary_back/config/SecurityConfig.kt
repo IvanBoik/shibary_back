@@ -21,10 +21,10 @@ import java.util.UUID
 /**
  * Spring Security setup shared by every deployment of this artifact.
  *
- * - Actuator endpoints ([/actuator]) require HTTP Basic auth (used both by the local app
+ * - Actuator endpoints require HTTP Basic auth (used both by the local app
  *   and scraped by the external Spring Boot Admin server).
  * - Swagger/OpenAPI docs require an admin login.
- * - The [/api] endpoints use stateless JWT auth.
+ * - The api endpoints use stateless JWT auth.
  *
  * The Spring Boot Admin UI itself lives in [AdminServerConfig], which is only active in the
  * `admin` profile (the dedicated admin container).
@@ -64,8 +64,24 @@ class SecurityConfig(
     return http.build()
   }
 
+  // Admin panel (user management UI + API) lives in the main application because the standalone
+  // Spring Boot Admin container has no datasource. Reuses the same admin credentials/role as the
+  // Swagger and Actuator endpoints. Active only outside the `admin` profile to avoid clashing with
+  // the SBA UI, which owns the admin context path there.
   @Bean
   @Order(1)
+  @Profile("!admin")
+  fun adminPanelSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    http
+      .securityMatcher("/admin/**")
+      .authorizeHttpRequests { it.anyRequest().hasRole(ADMIN_ROLE) }
+      .httpBasic(Customizer.withDefaults())
+      .csrf { it.disable() }
+    return http.build()
+  }
+
+  @Bean
+  @Order(2)
   @Profile("!admin")
   fun apiSecurityFilterChain(http: HttpSecurity, jwtAuthenticationFilter: JwtAuthenticationFilter): SecurityFilterChain {
     http
@@ -83,7 +99,7 @@ class SecurityConfig(
   }
 
   @Bean
-  @Order(2)
+  @Order(3)
   fun actuatorSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
     http
       .securityMatcher("/actuator/**")

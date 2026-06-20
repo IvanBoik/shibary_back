@@ -9,6 +9,7 @@ data class AppUser(
   val passwordHash: String?,
   val displayName: String?,
   val emailVerified: Boolean,
+  val banned: Boolean = false,
 )
 
 data class StoredRefreshToken(

@@ -15,7 +15,7 @@ class AuthRepository(private val jdbc: NamedParameterJdbcTemplate) {
 
   fun findUserByEmail(email: String): AppUser? = jdbc.query(
     """
-      SELECT id, email, password_hash, display_name, email_verified
+      SELECT id, email, password_hash, display_name, email_verified, banned
       FROM users
       WHERE email = :email
     """.trimIndent(),
@@ -24,7 +24,7 @@ class AuthRepository(private val jdbc: NamedParameterJdbcTemplate) {
 
   fun findUserById(userId: UUID): AppUser? = jdbc.query(
     """
-      SELECT id, email, password_hash, display_name, email_verified
+      SELECT id, email, password_hash, display_name, email_verified, banned
       FROM users
       WHERE id = :id
     """.trimIndent(),
@@ -50,7 +50,7 @@ class AuthRepository(private val jdbc: NamedParameterJdbcTemplate) {
 
   fun findUserByOAuth(provider: String, providerUserId: String): AppUser? = jdbc.query(
     """
-      SELECT u.id, u.email, u.password_hash, u.display_name, u.email_verified
+      SELECT u.id, u.email, u.password_hash, u.display_name, u.email_verified, u.banned
       FROM users u
       JOIN oauth_accounts oa ON oa.user_id = u.id
       WHERE oa.provider = :provider AND oa.provider_user_id = :providerUserId
@@ -121,12 +121,20 @@ class AuthRepository(private val jdbc: NamedParameterJdbcTemplate) {
     )
   }
 
+  fun revokeAllRefreshTokensForUser(userId: UUID) {
+    jdbc.update(
+      "UPDATE refresh_tokens SET revoked = true WHERE user_id = :userId",
+      mapOf("userId" to userId),
+    )
+  }
+
   private fun ResultSet.toAppUser(): AppUser = AppUser(
     id = getObject("id", UUID::class.java),
     email = getString("email"),
     passwordHash = getString("password_hash"),
     displayName = getString("display_name"),
     emailVerified = getBoolean("email_verified"),
+    banned = getBoolean("banned"),
   )
 
   private fun normalizeEmail(email: String): String = email.trim().lowercase()
