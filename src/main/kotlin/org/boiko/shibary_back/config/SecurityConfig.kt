@@ -65,20 +65,29 @@ class SecurityConfig(
   }
 
   // Admin panel (user management UI + API) lives in the main application because the standalone
-  // Spring Boot Admin container has no datasource. Reuses the same admin credentials/role as the
-  // Swagger and Actuator endpoints. Active only outside the `admin` profile to avoid clashing with
-  // the SBA UI, which owns the admin context path there.
+  // Spring Boot Admin container has no datasource. Uses a form login (same UX as the SBA server)
+  // backed by the same admin credentials/role as the Swagger and Actuator endpoints. Active only
+  // outside the `admin` profile to avoid clashing with the SBA UI, which owns the admin context
+  // path there.
   @Bean
   @Order(1)
   @Profile("!admin")
   fun adminPanelSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
     http
-      .securityMatcher("/admin/**")
-      .authorizeHttpRequests { it.anyRequest().hasRole(ADMIN_ROLE) }
-      .httpBasic(Customizer.withDefaults())
+      // Owns the admin panel plus the shared login/logout endpoints used to establish the session.
+      .securityMatcher("/admin/**", "/login", "/logout")
+      .authorizeHttpRequests { authorize ->
+        authorize
+          .requestMatchers("/login", "/logout").permitAll()
+          .anyRequest().hasRole(ADMIN_ROLE)
+      }
+      // Default generated login page at /login; on success redirects back to the requested page.
+      .formLogin { form -> form.permitAll() }
+      .logout { logout -> logout.logoutSuccessUrl("/login?logout").permitAll() }
       .csrf { it.disable() }
     return http.build()
   }
+
 
   @Bean
   @Order(2)

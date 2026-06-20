@@ -8,8 +8,11 @@
     :root { --bg: #f5f6f8; --card: #fff; --border: #e2e5ea; --primary: #2563eb; --danger: #dc2626; --warn: #d97706; --ok: #16a34a; --muted: #6b7280; }
     * { box-sizing: border-box; }
     body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: #111827; }
-    header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; }
-    header h1 { margin: 0; font-size: 20px; }
+    header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 16px; }
+    header h1 { margin: 0; font-size: 20px; flex: 1; }
+    header form { margin: 0; }
+    header button { background: #fff; color: #111827; border: 1px solid var(--border); }
+    header button:hover { background: var(--bg); }
     main { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
     .card h2 { margin: 0 0 16px; font-size: 16px; }
@@ -44,7 +47,10 @@
   </style>
 </head>
 <body>
-<header><h1>Управление пользователями</h1></header>
+<header>
+  <h1>Управление пользователями</h1>
+  <form method="post" action="/logout"><button type="submit">Выйти</button></form>
+</header>
 <main>
   <div id="message"></div>
 
@@ -107,6 +113,11 @@
 
   async function request(url, options) {
     const res = await fetch(url, options);
+    // Session expired or unauthenticated: bounce to the login page.
+    if (res.status === 401 || res.status === 403) {
+      window.location.href = "/login";
+      throw new Error("Требуется вход");
+    }
     if (res.status === 204) return null;
     const data = await res.json().catch(() => null);
     if (!res.ok) {
