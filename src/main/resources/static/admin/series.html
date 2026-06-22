@@ -187,9 +187,12 @@
   document.getElementById("createSeriesForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = document.getElementById("createSeriesBtn");
+    const originalText = btn.textContent;
     btn.disabled = true;
+    btn.textContent = "Загрузка…";
     try {
       const imageKey = await uploadFile("IMAGE", document.getElementById("c_image").files[0]);
+      btn.textContent = "Сохранение…";
       await request(API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -209,6 +212,7 @@
       showMessage(err.message, "error");
     } finally {
       btn.disabled = false;
+      btn.textContent = originalText;
     }
   });
 
@@ -277,14 +281,14 @@
           </tbody>
         </table>
         <h3>Добавить серию</h3>
-        <form class="episodeForm" data-season="${season.id}">
+        <div class="episodeForm" data-season="${season.id}">
           <div class="field"><label>Номер</label><input name="number" type="number" min="1" required></div>
           <div class="field"><label>Название (EN)</label><input name="title" required></div>
           <div class="field"><label>Видео</label><input name="video" type="file" accept="video/*" required></div>
           <div class="field"><label>Субтитры RU</label><input name="sub_ru" type="file" required></div>
           <div class="field"><label>Субтитры EN</label><input name="sub_en" type="file" required></div>
-          <button type="submit">Добавить серию</button>
-        </form>
+          <button type="button" data-action="add-episode">Добавить серию</button>
+        </div>
       </div>`).join("");
   }
 
@@ -311,19 +315,23 @@
     }
   });
 
-  // Season/episode deletions and per-season episode creation are delegated from the container.
+  // Season/episode actions are delegated from the static container. Episode creation is a plain
+  // button (not a <form> submit) so the request always carries a JSON body — a native multipart
+  // form submission would reach the API with no JSON body and fail with "request body is missing".
   document.getElementById("seasonsContainer").addEventListener("click", async (e) => {
     const btn = e.target.closest("button[data-action]");
     if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === "add-episode") { await addEpisode(btn); return; }
     const id = btn.dataset.id;
-    if (btn.dataset.action === "del-season" && !confirm("Удалить сезон со всеми сериями?")) return;
-    if (btn.dataset.action === "del-episode" && !confirm("Удалить серию?")) return;
+    if (action === "del-season" && !confirm("Удалить сезон со всеми сериями?")) return;
+    if (action === "del-episode" && !confirm("Удалить серию?")) return;
     btn.disabled = true;
     try {
-      if (btn.dataset.action === "del-season") {
+      if (action === "del-season") {
         await request(`${API}/seasons/${id}`, { method: "DELETE" });
         showMessage("Сезон удалён", "success");
-      } else if (btn.dataset.action === "del-episode") {
+      } else if (action === "del-episode") {
         await request(`${API}/episodes/${id}`, { method: "DELETE" });
         showMessage("Серия удалена", "success");
       } else { return; }
@@ -334,37 +342,49 @@
     }
   });
 
-  document.getElementById("seasonsContainer").addEventListener("submit", async (e) => {
-    const form = e.target.closest("form.episodeForm");
-    if (!form) return;
-    e.preventDefault();
-    const submitBtn = form.querySelector("button[type=submit]");
-    submitBtn.disabled = true;
+  // Reads the per-season episode inputs, uploads the three media files to S3, then creates the
+  // episode atomically. All fields are mandatory.
+  async function addEpisode(btn) {
+    const box = btn.closest(".episodeForm");
+    const field = (name) => box.querySelector(`[name="${name}"]`);
+    const number = field("number").value.trim();
+    const title = field("title").value.trim();
+    const videoFile = field("video").files[0];
+    const subRuFile = field("sub_ru").files[0];
+    const subEnFile = field("sub_en").files[0];
+    if (!number || !title || !videoFile || !subRuFile || !subEnFile) {
+      showMessage("Заполните все поля и выберите все файлы серии", "error");
+      return;
+    }
+    const originalText = btn.textContent;
+    // Uploading large media to S3 takes a while; show progress so the page doesn't look frozen.
+    btn.disabled = true;
+    btn.textContent = "Загрузка файлов…";
     try {
-      const f = form.elements;
       // Upload all three media files first; episode creation on the server is atomic.
       const [videoKey, subtitlesRuKey, subtitlesEnKey] = await Promise.all([
-        uploadFile("VIDEO", f.video.files[0]),
-        uploadFile("SUBTITLES", f.sub_ru.files[0]),
-        uploadFile("SUBTITLES", f.sub_en.files[0]),
+        uploadFile("VIDEO", videoFile),
+        uploadFile("SUBTITLES", subRuFile),
+        uploadFile("SUBTITLES", subEnFile),
       ]);
-      await request(`${API}/seasons/${form.dataset.season}/episodes`, {
+      btn.textContent = "Сохранение…";
+      await request(`${API}/seasons/${box.dataset.season}/episodes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          number: Number(f.number.value),
-          title: f.title.value.trim(),
+          number: Number(number),
+          title,
           videoKey, subtitlesRuKey, subtitlesEnKey,
         }),
       });
-      showMessage(`Серия ${f.number.value} добавлена`, "success");
+      showMessage(`Серия ${number} добавлена`, "success");
       await loadSeasons();
     } catch (err) {
       showMessage(err.message, "error");
-    } finally {
-      submitBtn.disabled = false;
+      btn.disabled = false;
+      btn.textContent = originalText;
     }
-  });
+  }
 
   loadList();
 </script>
