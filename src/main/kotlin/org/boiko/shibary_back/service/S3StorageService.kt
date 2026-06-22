@@ -43,6 +43,7 @@ class S3StorageService(
 
   /** Mints a presigned PUT URL the browser uses to upload [key] directly to S3. */
   fun presignUpload(key: String, contentType: String): String {
+    log.debug("Presigning upload for key '{}' (contentType={}, ttl={})", key, contentType, props.presignTtl)
     val putRequest = PutObjectRequest.builder()
       .bucket(props.bucket)
       .key(key)
@@ -52,11 +53,19 @@ class S3StorageService(
       .signatureDuration(props.presignTtl)
       .putObjectRequest(putRequest)
       .build()
-    return s3Presigner.presignPutObject(presignRequest).url().toString()
+    return try {
+      val url = s3Presigner.presignPutObject(presignRequest).url().toString()
+      log.info("Minted presigned upload URL for key '{}'", key)
+      url
+    } catch (ex: Exception) {
+      log.error("Failed to presign upload for key '{}': {}", key, ex.message, ex)
+      throw ex
+    }
   }
 
   /** Mints a presigned GET URL for displaying/downloading a stored object. */
   fun presignDownload(key: String): String {
+    log.debug("Presigning download for key '{}' (ttl={})", key, props.presignTtl)
     val getRequest = GetObjectRequest.builder()
       .bucket(props.bucket)
       .key(key)
@@ -65,14 +74,21 @@ class S3StorageService(
       .signatureDuration(props.presignTtl)
       .getObjectRequest(getRequest)
       .build()
-    return s3Presigner.presignGetObject(presignRequest).url().toString()
+    return try {
+      s3Presigner.presignGetObject(presignRequest).url().toString()
+    } catch (ex: Exception) {
+      log.error("Failed to presign download for key '{}': {}", key, ex.message, ex)
+      throw ex
+    }
   }
 
   /** True if the object exists in the bucket. Used to validate client-supplied keys. */
   fun exists(key: String): Boolean = try {
     s3Client.headObject(HeadObjectRequest.builder().bucket(props.bucket).key(key).build())
+    log.debug("S3 object '{}' exists", key)
     true
   } catch (_: NoSuchKeyException) {
+    log.debug("S3 object '{}' does not exist", key)
     false
   }
 
@@ -81,8 +97,10 @@ class S3StorageService(
    * Keeps episode creation atomic: we never persist references to objects that were never uploaded.
    */
   fun requireAllExist(keys: Collection<String>) {
+    log.debug("Verifying existence of {} S3 object(s): {}", keys.size, keys)
     val missing = keys.filterNot { exists(it) }
     if (missing.isNotEmpty()) {
+      log.warn("Rejected operation: {} of {} S3 object(s) missing: {}", missing.size, keys.size, missing)
       throw ApiException(
         "ASSET_NOT_FOUND",
         "Some files were not uploaded to storage: $missing",
@@ -93,9 +111,13 @@ class S3StorageService(
 
   /** Best-effort deletion; logs and swallows errors so cleanup never breaks the main flow. */
   fun deleteQuietly(keys: Collection<String>) {
-    keys.filter { it.isNotBlank() }.forEach { key ->
+    val toDelete = keys.filter { it.isNotBlank() }
+    if (toDelete.isEmpty()) return
+    log.info("Deleting {} S3 object(s): {}", toDelete.size, toDelete)
+    toDelete.forEach { key ->
       try {
         s3Client.deleteObject(DeleteObjectRequest.builder().bucket(props.bucket).key(key).build())
+        log.debug("Deleted S3 object '{}'", key)
       } catch (ex: Exception) {
         log.warn("Failed to delete S3 object '{}': {}", key, ex.message)
       }

@@ -13,6 +13,7 @@ import org.boiko.shibary_back.dto.SeriesMetaRequest
 import org.boiko.shibary_back.dto.SeriesSummaryDto
 import org.boiko.shibary_back.service.S3StorageService
 import org.boiko.shibary_back.service.SeriesAdminService
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -37,11 +38,14 @@ class SeriesAdminController(
   private val storage: S3StorageService,
 ) {
 
+  private val log = LoggerFactory.getLogger(javaClass)
+
   // ----- Uploads -------------------------------------------------------------------------------
 
   @Operation(summary = "Получить presigned URL для прямой загрузки файла в S3")
   @PostMapping("/uploads/presign")
   fun presignUpload(@RequestBody request: PresignUploadRequest): ResponseEntity<PresignUploadResponse> {
+    log.info("Presign upload requested: type={}, fileName='{}'", request.type, request.fileName)
     val key = storage.newObjectKey(request.type, request.fileName)
     val url = storage.presignUpload(key, request.contentType)
     return ResponseEntity.ok(PresignUploadResponse(uploadUrl = url, key = key))

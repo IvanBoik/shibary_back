@@ -114,8 +114,9 @@
 
   async function request(url, options) {
     const res = await fetch(url, options);
-    // Session expired or unauthenticated: bounce to the login page.
-    if (res.status === 401 || res.status === 403) {
+    // Session expired or unauthenticated: form-login replies with a 302 to /login that fetch follows
+    // (res.redirected + res.url), or the endpoint returns 401/403 directly. Bounce to login.
+    if (res.status === 401 || res.status === 403 || (res.redirected && res.url.includes("/login"))) {
       window.location.href = "/login";
       throw new Error("Требуется вход");
     }
