@@ -10,6 +10,7 @@ version = "0.0.1-SNAPSHOT"
 description = "shibary_back"
 
 extra["springBootAdminVersion"] = "4.0.4"
+extra["awsSdkVersion"] = "2.31.6"
 
 java {
   toolchain {
@@ -36,6 +37,11 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-mail")
   implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
 
+  // S3-compatible object storage (AWS/MinIO/Yandex). Files are uploaded directly by the client via
+  // presigned URLs; the backend only mints those URLs and performs HEAD/DELETE maintenance.
+  implementation("software.amazon.awssdk:s3")
+  implementation("software.amazon.awssdk:url-connection-client")
+
   testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
   testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
   testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
@@ -55,5 +61,6 @@ tasks.withType<Test> {
 dependencyManagement {
   imports {
     mavenBom("de.codecentric:spring-boot-admin-dependencies:${property("springBootAdminVersion")}")
+    mavenBom("software.amazon.awssdk:bom:${property("awsSdkVersion")}")
   }
 }

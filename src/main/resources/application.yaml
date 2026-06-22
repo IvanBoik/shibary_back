@@ -32,6 +32,17 @@ libretranslate:
   source-lang: en
   target-lang: ru
 
+# S3-compatible storage for the series library (images, videos, subtitles).
+s3:
+  bucket: ${S3_BUCKET:}
+  key-prefix: ${S3_KEY_PREFIX:}
+  region: ${S3_REGION:default}
+  endpoint: ${S3_ENDPOINT:}
+  access-key: ${S3_ACCESS_KEY:}
+  secret-key: ${S3_SECRET_KEY:}
+  path-style-access: ${S3_PATH_STYLE_ACCESS:true}
+  presign-ttl: ${S3_PRESIGN_TTL:15m}
+
 server:
   port: ${SERVER_PORT:8080}
 
