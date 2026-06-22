@@ -1,0 +1,48 @@
+# Standalone Spring Boot Admin monitoring server.
+#
+# This process only runs the admin UI/server: no database, no business layer. Monitored
+# applications register themselves here via their SBA client.
+spring:
+  application:
+    name: shibary_admin
+  boot:
+    admin:
+      context-path: /admin
+      # Email alerts on monitored instance status changes (e.g. the main service going DOWN/OFFLINE).
+      notify:
+        mail:
+          enabled: ${SBA_MAIL_NOTIFY_ENABLED:true}
+          from: ${SBA_MAIL_FROM:${spring.mail.username:}}
+          to: ${SBA_MAIL_TO:}
+          # Suppress noise on the initial registration transition; alert on every other change.
+          ignore-changes: "UNKNOWN:UP"
+  # SMTP transport used by the MailNotifier above.
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_SMTP_STARTTLS:true}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+# Credentials for the admin UI login and for authenticating incoming SBA client registrations.
+admin:
+  security:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:}

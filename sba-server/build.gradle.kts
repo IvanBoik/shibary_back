@@ -7,7 +7,7 @@ plugins {
 
 group = "org.boiko"
 version = "0.0.1-SNAPSHOT"
-description = "shibary_back"
+description = "shibary_admin (Spring Boot Admin monitoring server)"
 
 extra["springBootAdminVersion"] = "4.0.4"
 
@@ -22,21 +22,17 @@ repositories {
 }
 
 dependencies {
-  implementation("org.springframework.boot:spring-boot-starter-actuator")
+  // Standalone Spring Boot Admin monitoring server. Intentionally has NO database/business deps:
+  // it must start and stay observable even when the main application or the DB is down.
+  implementation("de.codecentric:spring-boot-admin-starter-server")
   implementation("org.springframework.boot:spring-boot-starter-webmvc")
-  implementation("org.springframework.boot:spring-boot-starter-data-jdbc")
-  implementation("org.postgresql:postgresql")
+  implementation("org.springframework.boot:spring-boot-starter-actuator")
+  implementation("org.springframework.boot:spring-boot-starter-security")
+  // Enables SBA's MailNotifier (registers a MailSender bean) to send email on instance status changes.
+  implementation("org.springframework.boot:spring-boot-starter-mail")
   implementation("org.jetbrains.kotlin:kotlin-reflect")
   implementation("tools.jackson.module:jackson-module-kotlin")
-  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 
-  // This artifact is an SBA *client* only; the monitoring server lives in the :sba-server module.
-  implementation("de.codecentric:spring-boot-admin-starter-client")
-  implementation("org.springframework.boot:spring-boot-starter-security")
-  implementation("org.springframework.boot:spring-boot-starter-mail")
-  implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
-
-  testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
   testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
   testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")

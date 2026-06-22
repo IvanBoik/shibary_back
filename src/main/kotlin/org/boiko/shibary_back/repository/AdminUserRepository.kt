@@ -1,7 +1,6 @@
 package org.boiko.shibary_back.repository
 
 import org.boiko.shibary_back.model.AppUser
-import org.springframework.context.annotation.Profile
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Repository
 import java.sql.ResultSet
@@ -9,12 +8,8 @@ import java.util.UUID
 
 /**
  * Read/maintenance queries used exclusively by the admin panel.
- *
- * Only active outside the `admin` profile: the standalone Spring Boot Admin container has no
- * datasource (see `application-admin.yaml`), so the user database lives next to the main app.
  */
 @Repository
-@Profile("!admin")
 class AdminUserRepository(private val jdbc: NamedParameterJdbcTemplate) {
 
   /** Returns a single page of users ordered by newest first. */

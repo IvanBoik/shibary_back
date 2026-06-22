@@ -7,7 +7,6 @@ import org.boiko.shibary_back.repository.AdminUserRepository
 import org.boiko.shibary_back.repository.AuthRepository
 import org.boiko.shibary_back.repository.EmailVerificationRepository
 import org.slf4j.LoggerFactory
-import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -16,11 +15,8 @@ import java.util.UUID
 
 /**
  * Account management used by the admin panel: list, create, ban/unban and delete users.
- *
- * Disabled in the `admin` profile, which runs without a datasource.
  */
 @Service
-@Profile("!admin")
 class AdminUserService(
   private val adminUserRepository: AdminUserRepository,
   private val authRepository: AuthRepository,

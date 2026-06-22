@@ -68,13 +68,9 @@ management:
 
 spring.boot.admin:
   context-path: /admin
-  # This process is an SBA *client*, not the admin server. The mail starter (used for email
-  # verification) registers a MailSender bean, which would otherwise trigger SBA's server-side
-  # MailNotifier autoconfiguration. That notifier needs an InstanceRepository, which only exists
-  # in the dedicated admin-server process (profile `admin`). Disabling the server here prevents the
-  # notifier autoconfiguration from loading. The standalone admin container re-enables it.
-  server:
-    enabled: false
+  # This artifact is an SBA *client* only; the monitoring server lives in the standalone
+  # :sba-server module. The SBA server starter is not on this classpath, so there is no
+  # server-side autoconfiguration to disable here.
   client:
     url: ${SBA_CLIENT_URL:http://localhost:${server.port}/admin}
     username: ${admin.security.username}

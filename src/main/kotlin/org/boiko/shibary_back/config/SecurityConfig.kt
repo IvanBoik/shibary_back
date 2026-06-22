@@ -3,7 +3,6 @@ package org.boiko.shibary_back.config
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Profile
 import org.springframework.core.annotation.Order
 import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
@@ -26,8 +25,8 @@ import java.util.UUID
  * - Swagger/OpenAPI docs require an admin login.
  * - The api endpoints use stateless JWT auth.
  *
- * The Spring Boot Admin UI itself lives in [AdminServerConfig], which is only active in the
- * `admin` profile (the dedicated admin container).
+ * The Spring Boot Admin monitoring UI/server itself lives in the standalone `:sba-server` module;
+ * this artifact is only an SBA *client* (see [SbaClientConfig]).
  */
 @Configuration
 class SecurityConfig(
@@ -64,14 +63,10 @@ class SecurityConfig(
     return http.build()
   }
 
-  // Admin panel (user management UI + API) lives in the main application because the standalone
-  // Spring Boot Admin container has no datasource. Uses a form login (same UX as the SBA server)
-  // backed by the same admin credentials/role as the Swagger and Actuator endpoints. Active only
-  // outside the `admin` profile to avoid clashing with the SBA UI, which owns the admin context
-  // path there.
+  // Admin panel (user management UI + API). Uses a form login backed by the same admin
+  // credentials/role as the Swagger and Actuator endpoints.
   @Bean
   @Order(1)
-  @Profile("!admin")
   fun adminPanelSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
     http
       // Owns the admin panel plus the shared login/logout endpoints used to establish the session.
@@ -91,7 +86,6 @@ class SecurityConfig(
 
   @Bean
   @Order(2)
-  @Profile("!admin")
   fun apiSecurityFilterChain(http: HttpSecurity, jwtAuthenticationFilter: JwtAuthenticationFilter): SecurityFilterChain {
     http
       .securityMatcher("/api/**")

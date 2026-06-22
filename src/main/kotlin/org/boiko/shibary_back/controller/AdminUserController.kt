@@ -6,7 +6,6 @@ import org.boiko.shibary_back.dto.AdminCreateUserRequest
 import org.boiko.shibary_back.dto.AdminUserDto
 import org.boiko.shibary_back.dto.AdminUserPageDto
 import org.boiko.shibary_back.service.AdminUserService
-import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -26,7 +25,6 @@ import java.util.UUID
 @Tag(name = "Admin", description = "Управление аккаунтами пользователей (только для администратора)")
 @RestController
 @RequestMapping("/admin/api/users")
-@Profile("!admin")
 class AdminUserController(private val adminUserService: AdminUserService) {
 
   @Operation(summary = "Список пользователей с постраничной навигацией")

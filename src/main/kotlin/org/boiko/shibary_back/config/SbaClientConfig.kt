@@ -7,7 +7,6 @@ import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder
 import org.springframework.boot.http.client.HttpClientSettings
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpHeaders
 import org.springframework.web.client.RestClient
 import java.nio.charset.StandardCharsets
@@ -24,7 +23,6 @@ import java.util.Base64
  * BasicAuthenticationFilter accepts UTF-8 by default.
  */
 @Configuration(proxyBeanMethods = false)
-@Profile("!admin")
 class SbaClientConfig {
 
   @Bean

@@ -58,7 +58,12 @@ services:
       SBA_SERVICE_BASE_URL: http://shibary-back:8080
 
   shibary-admin:
-    image: shibary-back:latest
+    build:
+      context: .
+      args:
+        GRADLE_TASK: ":sba-server:bootJar"
+        JAR_DIR: "sba-server/build/libs"
+    image: shibary-admin:latest
     container_name: shibary-admin
     restart: unless-stopped
     ports:
@@ -66,10 +71,15 @@ services:
     env_file:
       - .env
     environment:
-      SPRING_PROFILES_ACTIVE: admin
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
-      ADMIN_USERS_VIEW_URL: ${ADMIN_USERS_VIEW_URL:-http://localhost:9090/admin/users.html}
+      # SMTP + recipients for status-change email alerts (see sba-server application.yaml).
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      SBA_MAIL_FROM: ${SBA_MAIL_FROM:-${MAIL_USERNAME}}
+      SBA_MAIL_TO: ${SBA_MAIL_TO}
 
 
 volumes:

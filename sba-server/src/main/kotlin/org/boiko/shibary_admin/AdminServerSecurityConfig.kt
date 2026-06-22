@@ -1,38 +1,55 @@
-package org.boiko.shibary_back.config
+package org.boiko.shibary_admin
 
 import de.codecentric.boot.admin.server.config.AdminServerProperties
-import de.codecentric.boot.admin.server.config.EnableAdminServer
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Profile
-import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.core.userdetails.User
+import org.springframework.security.core.userdetails.UserDetailsService
+import org.springframework.security.crypto.factory.PasswordEncoderFactories
+import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher.pathPattern
+import java.util.UUID
 
 /**
- * Standalone Spring Boot Admin server.
+ * Security for the standalone Spring Boot Admin UI/server.
  *
- * Active only in the `admin` profile, i.e. in the dedicated admin container. Running the admin UI
- * as a separate process means it stays up and observable even when the main application fails to
- * start, so its DOWN/OFFLINE state and last known health/logs remain visible.
- *
- * Monitored applications register themselves here as SBA clients (see [SbaClientConfig], which is
- * disabled in this profile).
+ * The same admin credentials are used both to log into the UI and by the monitored applications
+ * to authenticate their SBA client self-registration (HTTP Basic).
  */
 @Configuration
-@Profile("admin")
-@EnableAdminServer
-class AdminServerConfig(
+class AdminServerSecurityConfig(
+  @Value("\${admin.security.username:admin}") private val username: String,
+  @Value("\${admin.security.password:}") private val rawPassword: String,
   private val adminServer: AdminServerProperties,
 ) {
 
   @Bean
-  @Order(0)
+  fun passwordEncoder(): PasswordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder()
+
+  @Bean
+  fun userDetailsService(encoder: PasswordEncoder): UserDetailsService {
+    val password = rawPassword.ifBlank {
+      val generated = UUID.randomUUID().toString()
+      println("[security] Generated admin password (set ADMIN_PASSWORD to override): $generated")
+      generated
+    }
+    val admin = User.builder()
+      .username(username)
+      .password(encoder.encode(password))
+      .roles(ADMIN_ROLE)
+      .build()
+    return InMemoryUserDetailsManager(admin)
+  }
+
+  @Bean
   fun adminUiSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
     val ctx = adminServer.contextPath
 
@@ -42,7 +59,6 @@ class AdminServerConfig(
     }
 
     http
-      .securityMatcher("$ctx/**")
       .authorizeHttpRequests { authorize ->
         authorize
           .requestMatchers(
@@ -68,5 +84,9 @@ class AdminServerConfig(
       }
 
     return http.build()
+  }
+
+  companion object {
+    private const val ADMIN_ROLE = "ADMIN"
   }
 }
