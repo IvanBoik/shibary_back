@@ -6,6 +6,14 @@
 -- stored here. The number of seasons is derived from the `season` table, not stored on `series`.
 
 --changeset boiko:0002-series-library
+-- Drop any legacy series/season/episode tables created by the old pre-Liquibase schema.sql
+-- (they used a different shape: release_years_ru/en and bilingual episode titles). The series
+-- feature is new and holds no real data yet, so recreating from scratch is safe. On a fresh
+-- database these DROPs are no-ops.
+DROP TABLE IF EXISTS episode CASCADE;
+DROP TABLE IF EXISTS season CASCADE;
+DROP TABLE IF EXISTS series CASCADE;
+
 CREATE TABLE series (
     id                UUID PRIMARY KEY,
     title_ru          TEXT NOT NULL,
