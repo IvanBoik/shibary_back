@@ -26,7 +26,9 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-actuator")
   implementation("org.springframework.boot:spring-boot-starter-webmvc")
   implementation("org.springframework.boot:spring-boot-starter-data-jdbc")
-  implementation("org.liquibase:liquibase-core")
+  // Spring Boot 4 moved Liquibase auto-configuration into a dedicated starter; the bare
+  // liquibase-core dependency alone no longer triggers migrations on startup.
+  implementation("org.springframework.boot:spring-boot-starter-liquibase")
   implementation("org.postgresql:postgresql")
   implementation("org.jetbrains.kotlin:kotlin-reflect")
   implementation("tools.jackson.module:jackson-module-kotlin")
