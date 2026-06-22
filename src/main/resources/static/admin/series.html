@@ -38,9 +38,16 @@
     .season { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
     .season-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .season-head h3 { margin: 0; flex: 1; }
-    .row-actions { display: flex; gap: 8px; }
+    /* Wrapper div (not the <td> itself) is flex, so the cell keeps table-cell layout and its
+       bottom border stays aligned with the other cells in the row. */
+    .row-actions { display: flex; gap: 8px; align-items: center; }
     a.link { color: var(--primary); cursor: pointer; }
     .hidden { display: none; }
+    /* Episode edit form shown inline instead of the row's normal cells. */
+    .episode-edit td { background: #f9fafb; }
+    .episode-edit .field { display: inline-flex; flex-direction: column; gap: 4px; margin-right: 12px; }
+    .episode-edit input { min-width: 140px; }
+    .episode-edit .edit-actions { margin-top: 10px; display: flex; gap: 8px; }
   </style>
 </head>
 <body>
@@ -172,9 +179,11 @@
         <td>${escapeHtml(s.title.ru)}<br><span class="empty">${escapeHtml(s.title.en)}</span></td>
         <td>${escapeHtml(s.genre.ru)}</td>
         <td>${s.seasonsCount}</td>
-        <td class="row-actions">
-          <button class="ghost" data-action="open" data-id="${s.id}">Открыть</button>
-          <button class="danger" data-action="delete" data-id="${s.id}">Удалить</button>
+        <td>
+          <div class="row-actions">
+            <button class="ghost" data-action="open" data-id="${s.id}">Открыть</button>
+            <button class="danger" data-action="delete" data-id="${s.id}">Удалить</button>
+          </div>
         </td>
       </tr>`).join("");
   }
@@ -268,7 +277,7 @@
           <thead><tr><th>№</th><th>Название</th><th>Видео</th><th>Субтитры</th><th></th></tr></thead>
           <tbody>
             ${season.episodes.map(ep => `
-              <tr>
+              <tr data-episode-id="${ep.id}">
                 <td>${ep.number}</td>
                 <td>${escapeHtml(ep.title)}</td>
                 <td><a class="link" href="${escapeHtml(ep.videoUrl)}" target="_blank">видео</a></td>
@@ -276,7 +285,12 @@
                   <a class="link" href="${escapeHtml(ep.subtitlesRuUrl)}" target="_blank">RU</a> /
                   <a class="link" href="${escapeHtml(ep.subtitlesEnUrl)}" target="_blank">EN</a>
                 </td>
-                <td><button class="danger" data-action="del-episode" data-id="${ep.id}">Удалить</button></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="ghost" data-action="edit-episode" data-id="${ep.id}" data-number="${ep.number}" data-title="${escapeHtml(ep.title)}">Редактировать</button>
+                    <button class="danger" data-action="del-episode" data-id="${ep.id}">Удалить</button>
+                  </div>
+                </td>
               </tr>`).join("")}
           </tbody>
         </table>
@@ -323,6 +337,9 @@
     if (!btn) return;
     const action = btn.dataset.action;
     if (action === "add-episode") { await addEpisode(btn); return; }
+    if (action === "edit-episode") { showEpisodeEditRow(btn); return; }
+    if (action === "cancel-edit") { await loadSeasons(); return; }
+    if (action === "save-episode") { await saveEpisode(btn); return; }
     const id = btn.dataset.id;
     if (action === "del-season" && !confirm("Удалить сезон со всеми сериями?")) return;
     if (action === "del-episode" && !confirm("Удалить серию?")) return;
@@ -378,6 +395,64 @@
         }),
       });
       showMessage(`Серия ${number} добавлена`, "success");
+      await loadSeasons();
+    } catch (err) {
+      showMessage(err.message, "error");
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
+  // Replaces the episode row with an inline edit form. Files are optional: an empty file input
+  // keeps the current file, a chosen file replaces it (the old object is deleted server-side).
+  function showEpisodeEditRow(btn) {
+    const row = btn.closest("tr");
+    row.classList.add("episode-edit");
+    row.innerHTML = `
+      <td colspan="5" data-id="${btn.dataset.id}">
+        <div class="field"><label>Номер</label><input name="e_number" type="number" min="1" value="${btn.dataset.number}"></div>
+        <div class="field"><label>Название (EN)</label><input name="e_title" value="${escapeHtml(btn.dataset.title)}"></div>
+        <div class="field"><label>Видео (оставьте пустым, чтобы не менять)</label><input name="e_video" type="file" accept="video/*"></div>
+        <div class="field"><label>Субтитры RU</label><input name="e_sub_ru" type="file"></div>
+        <div class="field"><label>Субтитры EN</label><input name="e_sub_en" type="file"></div>
+        <div class="edit-actions">
+          <button data-action="save-episode" data-id="${btn.dataset.id}">Сохранить</button>
+          <button class="ghost" data-action="cancel-edit">Отмена</button>
+        </div>
+      </td>`;
+  }
+
+  // Saves episode edits: uploads only the files that were changed, sends nulls for the rest so the
+  // server keeps existing files; replaced files are deleted server-side.
+  async function saveEpisode(btn) {
+    const cell = btn.closest("td");
+    const field = (name) => cell.querySelector(`[name="${name}"]`);
+    const number = field("e_number").value.trim();
+    const title = field("e_title").value.trim();
+    if (!number || !title) {
+      showMessage("Номер и название обязательны", "error");
+      return;
+    }
+    const videoFile = field("e_video").files[0];
+    const subRuFile = field("e_sub_ru").files[0];
+    const subEnFile = field("e_sub_en").files[0];
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = (videoFile || subRuFile || subEnFile) ? "Загрузка файлов…" : "Сохранение…";
+    try {
+      // Upload only changed files (null → keep current on the server).
+      const [videoKey, subtitlesRuKey, subtitlesEnKey] = await Promise.all([
+        videoFile ? uploadFile("VIDEO", videoFile) : Promise.resolve(null),
+        subRuFile ? uploadFile("SUBTITLES", subRuFile) : Promise.resolve(null),
+        subEnFile ? uploadFile("SUBTITLES", subEnFile) : Promise.resolve(null),
+      ]);
+      btn.textContent = "Сохранение…";
+      await request(`${API}/episodes/${btn.dataset.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ number: Number(number), title, videoKey, subtitlesRuKey, subtitlesEnKey }),
+      });
+      showMessage(`Серия ${number} обновлена`, "success");
       await loadSeasons();
     } catch (err) {
       showMessage(err.message, "error");

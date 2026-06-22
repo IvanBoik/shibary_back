@@ -1,6 +1,7 @@
 package org.boiko.shibary_back.service
 
 import org.boiko.shibary_back.dto.CreateEpisodeRequest
+import org.boiko.shibary_back.dto.UpdateEpisodeRequest
 import org.boiko.shibary_back.dto.CreateSeasonRequest
 import org.boiko.shibary_back.dto.EpisodeDto
 import org.boiko.shibary_back.dto.Localized
@@ -159,6 +160,44 @@ class SeriesAdminService(
     }
     log.info("Admin added episode {} to season '{}'", request.number, seasonId)
     return episode.toDto()
+  }
+
+  /**
+   * Updates an episode. Number and title are always applied. For each media key supplied in the
+   * request the file is replaced (new key must already exist in S3) and the previous object is
+   * deleted; keys left null keep the current file.
+   */
+  @Transactional
+  fun updateEpisode(episodeId: UUID, request: UpdateEpisodeRequest): EpisodeDto {
+    val existing = episodeRepository.findById(episodeId) ?: throw episodeNotFound(episodeId)
+    if (request.number < 1) {
+      throw ApiException("VALIDATION_ERROR", "Episode number must be positive", HttpStatus.UNPROCESSABLE_ENTITY)
+    }
+    // Validate only the freshly uploaded objects exist in S3.
+    val newKeys = listOfNotNull(request.videoKey, request.subtitlesRuKey, request.subtitlesEnKey)
+    if (newKeys.isNotEmpty()) storage.requireAllExist(newKeys)
+
+    val updated = existing.copy(
+      number = request.number,
+      title = request.title,
+      videoKey = request.videoKey ?: existing.videoKey,
+      subtitlesRuKey = request.subtitlesRuKey ?: existing.subtitlesRuKey,
+      subtitlesEnKey = request.subtitlesEnKey ?: existing.subtitlesEnKey,
+    )
+    try {
+      if (episodeRepository.update(updated) == 0) throw episodeNotFound(episodeId)
+    } catch (_: DuplicateKeyException) {
+      throw ApiException("EPISODE_EXISTS", "Episode ${request.number} already exists", HttpStatus.CONFLICT)
+    }
+    // Delete replaced objects only after the row was successfully updated.
+    val replacedKeys = buildList {
+      if (request.videoKey != null && request.videoKey != existing.videoKey) add(existing.videoKey)
+      if (request.subtitlesRuKey != null && request.subtitlesRuKey != existing.subtitlesRuKey) add(existing.subtitlesRuKey)
+      if (request.subtitlesEnKey != null && request.subtitlesEnKey != existing.subtitlesEnKey) add(existing.subtitlesEnKey)
+    }
+    storage.deleteQuietly(replacedKeys)
+    log.info("Admin updated episode '{}' ({} file(s) replaced)", episodeId, replacedKeys.size)
+    return updated.toDto()
   }
 
   /** Deletes the episode row and its three media objects from S3. */

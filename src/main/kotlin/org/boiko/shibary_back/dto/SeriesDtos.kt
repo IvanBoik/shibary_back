@@ -78,6 +78,19 @@ data class CreateEpisodeRequest(
   val subtitlesEnKey: String,
 )
 
+/**
+ * Updates an episode. [number] and [title] are always required. Each media key is optional: a
+ * non-null value means the file was re-uploaded and replaces the current one (the old object is
+ * deleted from S3); null means keep the existing file.
+ */
+data class UpdateEpisodeRequest(
+  val number: Int,
+  val title: String,
+  val videoKey: String? = null,
+  val subtitlesRuKey: String? = null,
+  val subtitlesEnKey: String? = null,
+)
+
 /** Kind of asset the client wants to upload; determines the S3 key prefix and allowed usage. */
 enum class UploadAssetType {
   IMAGE,

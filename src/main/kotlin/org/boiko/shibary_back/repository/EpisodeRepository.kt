@@ -32,6 +32,24 @@ class EpisodeRepository(private val jdbc: NamedParameterJdbcTemplate) {
     )
   }
 
+  /** @throws DuplicateKeyException if another episode in the season already uses the new number. */
+  fun update(episode: Episode): Int = jdbc.update(
+    """
+      UPDATE episode SET
+        number = :number, title = :title, video_key = :videoKey,
+        subtitles_ru_key = :subtitlesRuKey, subtitles_en_key = :subtitlesEnKey
+      WHERE id = :id
+    """.trimIndent(),
+    mapOf(
+      "id" to episode.id,
+      "number" to episode.number,
+      "title" to episode.title,
+      "videoKey" to episode.videoKey,
+      "subtitlesRuKey" to episode.subtitlesRuKey,
+      "subtitlesEnKey" to episode.subtitlesEnKey,
+    ),
+  )
+
   fun findById(id: UUID): Episode? = jdbc.query(
     "SELECT * FROM episode WHERE id = :id",
     mapOf("id" to id),

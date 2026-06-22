@@ -11,6 +11,7 @@ import org.boiko.shibary_back.dto.SeasonDto
 import org.boiko.shibary_back.dto.SeriesDto
 import org.boiko.shibary_back.dto.SeriesMetaRequest
 import org.boiko.shibary_back.dto.SeriesSummaryDto
+import org.boiko.shibary_back.dto.UpdateEpisodeRequest
 import org.boiko.shibary_back.service.S3StorageService
 import org.boiko.shibary_back.service.SeriesAdminService
 import org.slf4j.LoggerFactory
@@ -109,6 +110,14 @@ class SeriesAdminController(
     @RequestBody request: CreateEpisodeRequest,
   ): ResponseEntity<EpisodeDto> =
     ResponseEntity.status(HttpStatus.CREATED).body(seriesAdminService.createEpisode(seasonId, request))
+
+  @Operation(summary = "Редактировать серию (номер, название, при необходимости заменить файлы)")
+  @PutMapping("/episodes/{episodeId}")
+  fun updateEpisode(
+    @PathVariable episodeId: UUID,
+    @RequestBody request: UpdateEpisodeRequest,
+  ): ResponseEntity<EpisodeDto> =
+    ResponseEntity.ok(seriesAdminService.updateEpisode(episodeId, request))
 
   @Operation(summary = "Удалить серию")
   @DeleteMapping("/episodes/{episodeId}")
