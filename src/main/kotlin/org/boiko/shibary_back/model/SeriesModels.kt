@@ -13,8 +13,7 @@ data class Series(
   val difficultyEn: String,
   val accentRu: String,
   val accentEn: String,
-  val releaseYearsRu: String,
-  val releaseYearsEn: String,
+  val releaseYear: Int,
   val imageKey: String,
 )
 
@@ -28,8 +27,7 @@ data class Episode(
   val id: UUID,
   val seasonId: UUID,
   val number: Int,
-  val titleRu: String,
-  val titleEn: String,
+  val title: String,
   val videoKey: String,
   val subtitlesRuKey: String,
   val subtitlesEnKey: String,

@@ -15,17 +15,16 @@ class EpisodeRepository(private val jdbc: NamedParameterJdbcTemplate) {
     jdbc.update(
       """
         INSERT INTO episode (
-          id, season_id, number, title_ru, title_en, video_key, subtitles_ru_key, subtitles_en_key
+          id, season_id, number, title, video_key, subtitles_ru_key, subtitles_en_key
         ) VALUES (
-          :id, :seasonId, :number, :titleRu, :titleEn, :videoKey, :subtitlesRuKey, :subtitlesEnKey
+          :id, :seasonId, :number, :title, :videoKey, :subtitlesRuKey, :subtitlesEnKey
         )
       """.trimIndent(),
       mapOf(
         "id" to episode.id,
         "seasonId" to episode.seasonId,
         "number" to episode.number,
-        "titleRu" to episode.titleRu,
-        "titleEn" to episode.titleEn,
+        "title" to episode.title,
         "videoKey" to episode.videoKey,
         "subtitlesRuKey" to episode.subtitlesRuKey,
         "subtitlesEnKey" to episode.subtitlesEnKey,
@@ -59,8 +58,7 @@ class EpisodeRepository(private val jdbc: NamedParameterJdbcTemplate) {
     id = getObject("id", UUID::class.java),
     seasonId = getObject("season_id", UUID::class.java),
     number = getInt("number"),
-    titleRu = getString("title_ru"),
-    titleEn = getString("title_en"),
+    title = getString("title"),
     videoKey = getString("video_key"),
     subtitlesRuKey = getString("subtitles_ru_key"),
     subtitlesEnKey = getString("subtitles_en_key"),

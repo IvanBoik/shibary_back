@@ -54,6 +54,7 @@ class SeriesAdminService(
   }
 
   fun createSeries(request: SeriesMetaRequest): SeriesDto {
+    validateReleaseYear(request.releaseYear)
     storage.requireAllExist(listOf(request.imageKey))
     val series = request.toSeries(UUID.randomUUID())
     seriesRepository.insert(series)
@@ -64,6 +65,7 @@ class SeriesAdminService(
   /** Updates metadata. If the image changed, the old object is deleted after a successful update. */
   fun updateSeries(id: UUID, request: SeriesMetaRequest): SeriesDto {
     val existing = seriesRepository.findById(id) ?: throw seriesNotFound(id)
+    validateReleaseYear(request.releaseYear)
     storage.requireAllExist(listOf(request.imageKey))
     val updated = request.toSeries(id)
     if (seriesRepository.update(updated) == 0) throw seriesNotFound(id)
@@ -145,8 +147,7 @@ class SeriesAdminService(
       id = UUID.randomUUID(),
       seasonId = seasonId,
       number = request.number,
-      titleRu = request.title.ru,
-      titleEn = request.title.en,
+      title = request.title,
       videoKey = request.videoKey,
       subtitlesRuKey = request.subtitlesRuKey,
       subtitlesEnKey = request.subtitlesEnKey,
@@ -171,13 +172,23 @@ class SeriesAdminService(
 
   // ----- Mapping helpers -----------------------------------------------------------------------
 
+  private fun validateReleaseYear(year: Int) {
+    if (year < MIN_RELEASE_YEAR || year > MAX_RELEASE_YEAR) {
+      throw ApiException(
+        "VALIDATION_ERROR",
+        "Release year must be between $MIN_RELEASE_YEAR and $MAX_RELEASE_YEAR",
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      )
+    }
+  }
+
   private fun SeriesMetaRequest.toSeries(id: UUID) = Series(
     id = id,
     titleRu = title.ru, titleEn = title.en,
     genreRu = genre.ru, genreEn = genre.en,
     difficultyRu = difficulty.ru, difficultyEn = difficulty.en,
     accentRu = accent.ru, accentEn = accent.en,
-    releaseYearsRu = releaseYears.ru, releaseYearsEn = releaseYears.en,
+    releaseYear = releaseYear,
     imageKey = imageKey,
   )
 
@@ -187,7 +198,7 @@ class SeriesAdminService(
     genre = Localized(genreRu, genreEn),
     difficulty = Localized(difficultyRu, difficultyEn),
     accent = Localized(accentRu, accentEn),
-    releaseYears = Localized(releaseYearsRu, releaseYearsEn),
+    releaseYear = releaseYear,
     seasonsCount = seasonsCount,
     imageUrl = storage.presignDownload(imageKey),
   )
@@ -209,7 +220,7 @@ class SeriesAdminService(
   private fun Episode.toDto() = EpisodeDto(
     id = id.toString(),
     number = number,
-    title = Localized(titleRu, titleEn),
+    title = title,
     videoUrl = storage.presignDownload(videoKey),
     subtitlesRuUrl = storage.presignDownload(subtitlesRuKey),
     subtitlesEnUrl = storage.presignDownload(subtitlesEnKey),
@@ -229,4 +240,9 @@ class SeriesAdminService(
     ApiException("EPISODE_NOT_FOUND", "Episode not found", HttpStatus.NOT_FOUND).also {
       log.warn("Episode '{}' not found", id)
     }
+
+  private companion object {
+    const val MIN_RELEASE_YEAR = 1900
+    const val MAX_RELEASE_YEAR = 2200
+  }
 }

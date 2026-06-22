@@ -11,6 +11,13 @@ services:
       POSTGRES_PASSWORD: shibary
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Gate dependent services until the DB accepts connections, so Liquibase migrations
+    # (run on app startup) don't fail trying to connect to a not-yet-ready Postgres.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shibary -d shibary"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   libretranslate:
     image: libretranslate/libretranslate:latest
@@ -40,8 +47,10 @@ services:
     ports:
       - "9090:8080"
     depends_on:
-      - postgres
-      - libretranslate
+      postgres:
+        condition: service_healthy
+      libretranslate:
+        condition: service_started
     env_file:
       - .env
     environment:

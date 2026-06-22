@@ -65,8 +65,7 @@
         <div class="field"><label>Сложность (EN)</label><input id="c_difficulty_en" required></div>
         <div class="field"><label>Акцент (RU)</label><input id="c_accent_ru" required></div>
         <div class="field"><label>Акцент (EN)</label><input id="c_accent_en" required></div>
-        <div class="field"><label>Года выпуска (RU)</label><input id="c_years_ru" required placeholder="2005–2010"></div>
-        <div class="field"><label>Года выпуска (EN)</label><input id="c_years_en" required placeholder="2005–2010"></div>
+        <div class="field"><label>Год выпуска</label><input id="c_year" type="number" min="1900" max="2200" required placeholder="2005"></div>
         <div class="field"><label>Картинка</label><input id="c_image" type="file" accept="image/*" required></div>
         <button type="submit" id="createSeriesBtn">Создать</button>
       </form>
@@ -199,7 +198,7 @@
           genre: loc("c_genre_ru", "c_genre_en"),
           difficulty: loc("c_difficulty_ru", "c_difficulty_en"),
           accent: loc("c_accent_ru", "c_accent_en"),
-          releaseYears: loc("c_years_ru", "c_years_en"),
+          releaseYear: Number(document.getElementById("c_year").value),
           imageKey,
         }),
       });
@@ -246,7 +245,7 @@
         Жанр: ${escapeHtml(s.genre.ru)} / ${escapeHtml(s.genre.en)} ·
         Сложность: ${escapeHtml(s.difficulty.ru)} / ${escapeHtml(s.difficulty.en)} ·
         Акцент: ${escapeHtml(s.accent.ru)} / ${escapeHtml(s.accent.en)} ·
-        Года: ${escapeHtml(s.releaseYears.ru)} · Сезонов: ${s.seasonsCount}`;
+        Год: ${s.releaseYear} · Сезонов: ${s.seasonsCount}`;
       await loadSeasons();
     } catch (e) {
       showMessage(e.message, "error");
@@ -267,7 +266,7 @@
             ${season.episodes.map(ep => `
               <tr>
                 <td>${ep.number}</td>
-                <td>${escapeHtml(ep.title.ru)} / ${escapeHtml(ep.title.en)}</td>
+                <td>${escapeHtml(ep.title)}</td>
                 <td><a class="link" href="${escapeHtml(ep.videoUrl)}" target="_blank">видео</a></td>
                 <td>
                   <a class="link" href="${escapeHtml(ep.subtitlesRuUrl)}" target="_blank">RU</a> /
@@ -280,8 +279,7 @@
         <h3>Добавить серию</h3>
         <form class="episodeForm" data-season="${season.id}">
           <div class="field"><label>Номер</label><input name="number" type="number" min="1" required></div>
-          <div class="field"><label>Название (RU)</label><input name="title_ru" required></div>
-          <div class="field"><label>Название (EN)</label><input name="title_en" required></div>
+          <div class="field"><label>Название (EN)</label><input name="title" required></div>
           <div class="field"><label>Видео</label><input name="video" type="file" accept="video/*" required></div>
           <div class="field"><label>Субтитры RU</label><input name="sub_ru" type="file" required></div>
           <div class="field"><label>Субтитры EN</label><input name="sub_en" type="file" required></div>
@@ -355,7 +353,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           number: Number(f.number.value),
-          title: { ru: f.title_ru.value.trim(), en: f.title_en.value.trim() },
+          title: f.title.value.trim(),
           videoKey, subtitlesRuKey, subtitlesEnKey,
         }),
       });

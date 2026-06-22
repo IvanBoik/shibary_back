@@ -5,9 +5,9 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:shibary}
     username: ${DB_USERNAME:shibary}
     password: ${DB_PASSWORD:shibary}
-  sql:
-    init:
-      mode: always
+  # Schema is managed by Liquibase migrations (see db/changelog), applied automatically on startup.
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
   mail:
     host: ${MAIL_HOST:}
     port: ${MAIL_PORT:587}

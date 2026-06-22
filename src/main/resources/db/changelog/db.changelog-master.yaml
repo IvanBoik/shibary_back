@@ -1,0 +1,7 @@
+# Liquibase master changelog. Applied automatically on application startup.
+# Each migration lives in its own file and is included here in order.
+databaseChangeLog:
+  - include:
+      file: db/changelog/0001-baseline.sql
+  - include:
+      file: db/changelog/0002-series-library.sql

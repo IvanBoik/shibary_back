@@ -16,7 +16,7 @@ data class SeriesDto(
   val genre: Localized,
   val difficulty: Localized,
   val accent: Localized,
-  val releaseYears: Localized,
+  val releaseYear: Int,
   val seasonsCount: Int,
   val imageUrl: String,
 )
@@ -39,7 +39,7 @@ data class SeriesMetaRequest(
   val genre: Localized,
   val difficulty: Localized,
   val accent: Localized,
-  val releaseYears: Localized,
+  val releaseYear: Int,
   val imageKey: String,
 )
 
@@ -53,7 +53,7 @@ data class SeasonDto(
 data class EpisodeDto(
   val id: String,
   val number: Int,
-  val title: Localized,
+  val title: String,
   val videoUrl: String,
   val subtitlesRuUrl: String,
   val subtitlesEnUrl: String,
@@ -70,7 +70,7 @@ data class CreateSeasonRequest(
  */
 data class CreateEpisodeRequest(
   val number: Int,
-  val title: Localized,
+  val title: String,
   val videoKey: String,
   val subtitlesRuKey: String,
   val subtitlesEnKey: String,

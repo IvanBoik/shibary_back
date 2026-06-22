@@ -1,3 +1,10 @@
+--liquibase formatted sql
+
+-- Baseline schema: every table that existed before the series library feature.
+-- Uses IF NOT EXISTS so it is safe to run against an already-provisioned database
+-- (existing deployments are simply recorded as having run this changeset).
+
+--changeset boiko:0001-baseline
 CREATE TABLE IF NOT EXISTS sentence (
     id         BIGSERIAL PRIMARY KEY,
     word       VARCHAR(255) NOT NULL,
@@ -126,51 +133,3 @@ CREATE TABLE IF NOT EXISTS user_game_scores (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_game_scores_revision ON user_game_scores (user_id, server_revision);
-
--- ============================================================================
--- Series library (admin-managed). Every text field is stored bilingually (ru/en).
--- Binary assets (image/video/subtitles) live in S3; only their object keys are stored here.
--- The number of seasons is derived from the `season` table, not stored on `series`.
--- ============================================================================
-CREATE TABLE IF NOT EXISTS series (
-    id                UUID PRIMARY KEY,
-    title_ru          TEXT NOT NULL,
-    title_en          TEXT NOT NULL,
-    genre_ru          TEXT NOT NULL,
-    genre_en          TEXT NOT NULL,
-    difficulty_ru     TEXT NOT NULL,
-    difficulty_en     TEXT NOT NULL,
-    accent_ru         TEXT NOT NULL,
-    accent_en         TEXT NOT NULL,
-    release_years_ru  TEXT NOT NULL,
-    release_years_en  TEXT NOT NULL,
-    image_key         TEXT NOT NULL,
-    created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at        TIMESTAMP NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS season (
-    id          UUID PRIMARY KEY,
-    series_id   UUID NOT NULL REFERENCES series(id) ON DELETE CASCADE,
-    number      INT  NOT NULL,
-    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (series_id, number)
-);
-
-CREATE INDEX IF NOT EXISTS idx_season_series_id ON season (series_id);
-
-CREATE TABLE IF NOT EXISTS episode (
-    id                UUID PRIMARY KEY,
-    season_id         UUID NOT NULL REFERENCES season(id) ON DELETE CASCADE,
-    number            INT  NOT NULL,
-    title_ru          TEXT NOT NULL,
-    title_en          TEXT NOT NULL,
-    video_key         TEXT NOT NULL,
-    subtitles_ru_key  TEXT NOT NULL,
-    subtitles_en_key  TEXT NOT NULL,
-    created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (season_id, number)
-);
-
-CREATE INDEX IF NOT EXISTS idx_episode_season_id ON episode (season_id);
-
