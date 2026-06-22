@@ -19,10 +19,10 @@ class SeriesRepository(private val jdbc: NamedParameterJdbcTemplate) {
       """
         INSERT INTO series (
           id, title_ru, title_en, genre_ru, genre_en, difficulty_ru, difficulty_en,
-          accent_ru, accent_en, release_year, image_key
+          accent_ru, accent_en, release_years, image_key
         ) VALUES (
           :id, :titleRu, :titleEn, :genreRu, :genreEn, :difficultyRu, :difficultyEn,
-          :accentRu, :accentEn, :releaseYear, :imageKey
+          :accentRu, :accentEn, :releaseYears, :imageKey
         )
       """.trimIndent(),
       series.toParams(),
@@ -37,7 +37,7 @@ class SeriesRepository(private val jdbc: NamedParameterJdbcTemplate) {
         genre_ru = :genreRu, genre_en = :genreEn,
         difficulty_ru = :difficultyRu, difficulty_en = :difficultyEn,
         accent_ru = :accentRu, accent_en = :accentEn,
-        release_year = :releaseYear,
+        release_years = :releaseYears,
         image_key = :imageKey, updated_at = NOW()
       WHERE id = :id
     """.trimIndent(),
@@ -80,7 +80,7 @@ class SeriesRepository(private val jdbc: NamedParameterJdbcTemplate) {
     .addValue("difficultyEn", difficultyEn)
     .addValue("accentRu", accentRu)
     .addValue("accentEn", accentEn)
-    .addValue("releaseYear", releaseYear)
+    .addValue("releaseYears", releaseYears)
     .addValue("imageKey", imageKey)
 
   private fun ResultSet.toSeries() = Series(
@@ -93,7 +93,7 @@ class SeriesRepository(private val jdbc: NamedParameterJdbcTemplate) {
     difficultyEn = getString("difficulty_en"),
     accentRu = getString("accent_ru"),
     accentEn = getString("accent_en"),
-    releaseYear = getInt("release_year"),
+    releaseYears = getString("release_years"),
     imageKey = getString("image_key"),
   )
 }

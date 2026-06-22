@@ -16,7 +16,8 @@ data class SeriesDto(
   val genre: Localized,
   val difficulty: Localized,
   val accent: Localized,
-  val releaseYear: Int,
+  /** Release years as free-form text, e.g. "2009" or "2009-2013" (no language split: digits only). */
+  val releaseYears: String,
   val seasonsCount: Int,
   val imageUrl: String,
 )
@@ -39,7 +40,8 @@ data class SeriesMetaRequest(
   val genre: Localized,
   val difficulty: Localized,
   val accent: Localized,
-  val releaseYear: Int,
+  /** Release years as free-form text, e.g. "2009" or "2009-2013". */
+  val releaseYears: String,
   val imageKey: String,
 )
 

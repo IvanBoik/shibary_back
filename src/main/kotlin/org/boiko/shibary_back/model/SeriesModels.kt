@@ -13,7 +13,7 @@ data class Series(
   val difficultyEn: String,
   val accentRu: String,
   val accentEn: String,
-  val releaseYear: Int,
+  val releaseYears: String,
   val imageKey: String,
 )
 

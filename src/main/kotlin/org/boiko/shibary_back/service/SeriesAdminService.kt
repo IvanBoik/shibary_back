@@ -54,7 +54,7 @@ class SeriesAdminService(
   }
 
   fun createSeries(request: SeriesMetaRequest): SeriesDto {
-    validateReleaseYear(request.releaseYear)
+    validateReleaseYears(request.releaseYears)
     storage.requireAllExist(listOf(request.imageKey))
     val series = request.toSeries(UUID.randomUUID())
     seriesRepository.insert(series)
@@ -65,7 +65,7 @@ class SeriesAdminService(
   /** Updates metadata. If the image changed, the old object is deleted after a successful update. */
   fun updateSeries(id: UUID, request: SeriesMetaRequest): SeriesDto {
     val existing = seriesRepository.findById(id) ?: throw seriesNotFound(id)
-    validateReleaseYear(request.releaseYear)
+    validateReleaseYears(request.releaseYears)
     storage.requireAllExist(listOf(request.imageKey))
     val updated = request.toSeries(id)
     if (seriesRepository.update(updated) == 0) throw seriesNotFound(id)
@@ -172,11 +172,12 @@ class SeriesAdminService(
 
   // ----- Mapping helpers -----------------------------------------------------------------------
 
-  private fun validateReleaseYear(year: Int) {
-    if (year < MIN_RELEASE_YEAR || year > MAX_RELEASE_YEAR) {
+  /** Accepts a single year ("2009") or a range ("2009-2013"); digits only, optionally one dash. */
+  private fun validateReleaseYears(releaseYears: String) {
+    if (!RELEASE_YEARS_REGEX.matches(releaseYears.trim())) {
       throw ApiException(
         "VALIDATION_ERROR",
-        "Release year must be between $MIN_RELEASE_YEAR and $MAX_RELEASE_YEAR",
+        "Release years must be a year or range of years, e.g. '2009' or '2009-2013'",
         HttpStatus.UNPROCESSABLE_ENTITY,
       )
     }
@@ -188,7 +189,7 @@ class SeriesAdminService(
     genreRu = genre.ru, genreEn = genre.en,
     difficultyRu = difficulty.ru, difficultyEn = difficulty.en,
     accentRu = accent.ru, accentEn = accent.en,
-    releaseYear = releaseYear,
+    releaseYears = releaseYears.trim(),
     imageKey = imageKey,
   )
 
@@ -198,7 +199,7 @@ class SeriesAdminService(
     genre = Localized(genreRu, genreEn),
     difficulty = Localized(difficultyRu, difficultyEn),
     accent = Localized(accentRu, accentEn),
-    releaseYear = releaseYear,
+    releaseYears = releaseYears,
     seasonsCount = seasonsCount,
     imageUrl = storage.presignDownload(imageKey),
   )
@@ -242,7 +243,7 @@ class SeriesAdminService(
     }
 
   private companion object {
-    const val MIN_RELEASE_YEAR = 1900
-    const val MAX_RELEASE_YEAR = 2200
+    // A single year or a hyphen-separated range, e.g. "2009" or "2009-2013".
+    val RELEASE_YEARS_REGEX = Regex("\\d{4}(-\\d{4})?")
   }
 }

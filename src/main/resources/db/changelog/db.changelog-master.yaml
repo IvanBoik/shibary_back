@@ -5,3 +5,5 @@ databaseChangeLog:
       file: db/changelog/0001-baseline.sql
   - include:
       file: db/changelog/0002-series-library.sql
+  - include:
+      file: db/changelog/0003-series-release-years-text.sql
