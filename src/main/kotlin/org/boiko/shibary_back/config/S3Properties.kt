@@ -28,4 +28,10 @@ data class S3Properties(
   val pathStyleAccess: Boolean = true,
   /** How long minted presigned upload/download URLs stay valid. */
   val presignTtl: Duration = Duration.ofMinutes(15),
+  /**
+   * Browser origins allowed to upload/download directly to the bucket. Applied as the bucket CORS
+   * policy on startup. Provide the admin panel origin(s), e.g. "http://localhost:9090".
+   * Empty disables automatic CORS configuration (configure the bucket manually instead).
+   */
+  val allowedOrigins: List<String> = emptyList(),
 )

@@ -6,10 +6,13 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.CORSConfiguration
+import software.amazon.awssdk.services.s3.model.CORSRule
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
 import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
+import software.amazon.awssdk.services.s3.model.PutBucketCorsRequest
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest
@@ -31,6 +34,36 @@ class S3StorageService(
 ) {
 
   private val log = LoggerFactory.getLogger(javaClass)
+
+  /**
+   * Applies a CORS policy to the bucket so the browser can upload/download directly via presigned
+   * URLs. Without this, the PUT/GET preflight is rejected with "No 'Access-Control-Allow-Origin'".
+   * Best-effort: logs and swallows errors (e.g. missing permission) so startup never fails.
+   */
+  fun ensureBucketCors() {
+    if (props.allowedOrigins.isEmpty()) {
+      log.info("S3 CORS auto-config skipped: no s3.allowed-origins configured")
+      return
+    }
+    val rule = CORSRule.builder()
+      .allowedOrigins(props.allowedOrigins)
+      .allowedMethods("GET", "PUT", "HEAD")
+      .allowedHeaders("*")
+      .exposeHeaders("ETag")
+      .maxAgeSeconds(3000)
+      .build()
+    try {
+      s3Client.putBucketCors(
+        PutBucketCorsRequest.builder()
+          .bucket(props.bucket)
+          .corsConfiguration(CORSConfiguration.builder().corsRules(rule).build())
+          .build(),
+      )
+      log.info("Applied S3 CORS policy to bucket '{}' for origins {}", props.bucket, props.allowedOrigins)
+    } catch (ex: Exception) {
+      log.warn("Failed to apply S3 CORS policy to bucket '{}': {}", props.bucket, ex.message)
+    }
+  }
 
   /** Builds a unique object key under the optional configured prefix, preserving the extension. */
   fun newObjectKey(type: UploadAssetType, fileName: String): String {

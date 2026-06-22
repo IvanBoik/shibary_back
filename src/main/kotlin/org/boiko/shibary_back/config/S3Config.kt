@@ -1,5 +1,7 @@
 package org.boiko.shibary_back.config
 
+import org.boiko.shibary_back.service.S3StorageService
+import org.springframework.boot.ApplicationRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
@@ -48,4 +50,8 @@ class S3Config(private val props: S3Properties) {
   private fun serviceConfiguration() = S3Configuration.builder()
     .pathStyleAccessEnabled(props.pathStyleAccess)
     .build()
+
+  /** Applies the bucket CORS policy on startup so direct browser uploads/downloads are allowed. */
+  @Bean
+  fun s3CorsInitializer(storage: S3StorageService) = ApplicationRunner { storage.ensureBucketCors() }
 }

@@ -42,6 +42,9 @@ s3:
   secret-key: ${S3_SECRET_KEY:}
   path-style-access: ${S3_PATH_STYLE_ACCESS:true}
   presign-ttl: ${S3_PRESIGN_TTL:15m}
+  # Comma-separated browser origins allowed to upload/download directly to the bucket (applied as
+  # the bucket CORS policy on startup). Empty disables auto-config.
+  allowed-origins: ${S3_ALLOWED_ORIGINS:}
 
 server:
   port: ${SERVER_PORT:8080}
